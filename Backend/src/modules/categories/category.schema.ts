@@ -1,0 +1,44 @@
+import mongoose, { Schema, Document } from "mongoose";
+
+export interface ICategory extends Document {
+  name: string;
+  slug: string;
+  image: string;
+  isActive: boolean;
+}
+
+const categorySchema = new Schema<ICategory>(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+
+    image: {
+      type: String,
+      required: true,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export const Category = mongoose.model<ICategory>(
+  "Category",
+  categorySchema
+);

@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+body {
+  caret-color: transparent;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable="plaintext-only"] {
+  caret-color: auto;
+}
