@@ -35,3 +35,7 @@ export const generateRefreshToken = (
     }
   );
 };
+
+export const verifyRefreshToken = (token: string) => {
+  return jwt.verify(token, refreshSecret) as { userId: string };
+};

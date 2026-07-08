@@ -4,11 +4,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const uploader_middleware_1 = __importDefault(require("../../middleware/uploader.middleware"));
-const menu_controller_1 = require("./menu.controller");
+const adminAuth_js_1 = require("../../middleware/adminAuth.js");
+const roleMiddleware_js_1 = require("../../middleware/roleMiddleware.js");
+const uploader_middleware_js_1 = __importDefault(require("../../middleware/uploader.middleware.js"));
+const menu_controller_js_1 = require("./menu.controller.js");
 const router = (0, express_1.Router)();
-router.post("/", uploader_middleware_1.default.single("image"), menu_controller_1.createMenuController);
-router.get("/", menu_controller_1.getMenusController);
+router.post("/", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), uploader_middleware_js_1.default.single("image"), menu_controller_js_1.createMenuController);
+router.get("/", menu_controller_js_1.getMenusController);
 exports.default = router;
 // import { Router } from "express";
 // import {

@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import {
   logoutController,
   meController,
+  refreshTokenController,
   sendOtpController,
   verifyOtpController,
 } from "./auth.controller.js";
@@ -24,7 +25,8 @@ const otpLimiter = rateLimit({
 router.post("/send-otp", otpLimiter, sendOtpController);
 router.post("/verify-otp", verifyOtpController);
 router.post("/otp-verify", verifyOtpController);
+router.post("/refresh", refreshTokenController);
 router.get("/me", protect, meController);
-router.post("/logout", protect, logoutController);
+router.post("/logout", logoutController);
 
 export default router;

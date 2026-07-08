@@ -1,11 +1,13 @@
 export interface IUser {
     userName: string;
     email: string;
+    password?: string;
     role: "user" | "admin";
     phoneNumber?: string;
     profileImage: string;
     isActive: boolean;
     isVerified: boolean;
+    refreshTokenHash?: string;
 }
 
 export interface AuthUser {

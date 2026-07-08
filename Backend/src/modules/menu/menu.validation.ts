@@ -31,3 +31,8 @@ export const createMenuSchema = z.object({
 
   isAvailable: optionalBooleanFromFormData,
 });
+
+export const updateMenuSchema = createMenuSchema.partial().refine(
+  (data) => Object.keys(data).length > 0,
+  "At least one product field is required"
+);

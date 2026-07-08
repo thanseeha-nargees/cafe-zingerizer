@@ -1,0 +1,30 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const adminAuth_js_1 = require("../../middleware/adminAuth.js");
+const roleMiddleware_js_1 = require("../../middleware/roleMiddleware.js");
+const uploader_middleware_js_1 = __importDefault(require("../../middleware/uploader.middleware.js"));
+const admin_controller_js_1 = require("./admin.controller.js");
+const dashboard_routes_js_1 = __importDefault(require("./dashboard.routes.js"));
+const order_controller_js_1 = require("./order.controller.js");
+const product_controller_js_1 = require("./product.controller.js");
+const staff_routes_js_1 = __importDefault(require("./staff.routes.js"));
+const user_controller_js_1 = require("./user.controller.js");
+const router = (0, express_1.Router)();
+router.post("/login", admin_controller_js_1.adminLoginController);
+router.use("/dashboard", dashboard_routes_js_1.default);
+router.use("/staff", staff_routes_js_1.default);
+router.get("/users", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), user_controller_js_1.getAdminUsersController);
+router.patch("/users/:id", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), user_controller_js_1.updateAdminUserController);
+router.get("/orders", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), order_controller_js_1.getAdminOrdersController);
+router.patch("/orders/:id/status", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), order_controller_js_1.updateAdminOrderStatusController);
+router.get("/products", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), product_controller_js_1.getAdminProductsController);
+router.post("/products", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), uploader_middleware_js_1.default.single("image"), product_controller_js_1.createAdminProductController);
+router.get("/products/:id", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), product_controller_js_1.getAdminProductController);
+router.put("/products/:id", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), uploader_middleware_js_1.default.single("image"), product_controller_js_1.updateAdminProductController);
+router.delete("/products/:id", adminAuth_js_1.adminAuth, (0, roleMiddleware_js_1.roleMiddleware)("admin"), product_controller_js_1.deleteAdminProductController);
+exports.default = router;
+//# sourceMappingURL=admin.routes.js.map

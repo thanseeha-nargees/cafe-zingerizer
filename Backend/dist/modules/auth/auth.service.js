@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAuthUser = exports.verifyLoginOtp = exports.sendLoginOtp = void 0;
+exports.getAuthUser = exports.clearUserRefreshToken = exports.saveUserRefreshToken = exports.verifyLoginOtp = exports.sendLoginOtp = exports.hashRefreshToken = exports.OtpDeliveryError = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const generateOtp_js_1 = require("../../utils/generateOtp.js");
 const jwt_js_1 = require("../../utils/jwt.js");
@@ -12,7 +12,29 @@ const otp_model_js_1 = require("./otp.model.js");
 const user_schema_js_1 = require("./user.schema.js");
 const OTP_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 10);
 const MAX_OTP_ATTEMPTS = Number(process.env.MAX_OTP_ATTEMPTS || 5);
+const isProduction = process.env.NODE_ENV === "production";
+const otpDeliveryMode = (process.env.OTP_DELIVERY_MODE || "email").toLowerCase();
+const useConsoleOtpDelivery = otpDeliveryMode === "console";
+const allowDevOtpFallback = !isProduction && process.env.ALLOW_DEV_OTP_FALLBACK !== "false";
+class OtpDeliveryError extends Error {
+    constructor() {
+        super("Unable to send OTP email right now. Please try again later.");
+        this.name = "OtpDeliveryError";
+    }
+}
+exports.OtpDeliveryError = OtpDeliveryError;
 const normalizeEmail = (email) => email.trim().toLowerCase();
+const hashRefreshToken = (refreshToken) => {
+    const pepper = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    if (!pepper) {
+        throw new Error("JWT_REFRESH_SECRET or JWT_SECRET is not configured");
+    }
+    return crypto_1.default
+        .createHmac("sha256", pepper)
+        .update(refreshToken)
+        .digest("hex");
+};
+exports.hashRefreshToken = hashRefreshToken;
 const hashOtp = (email, otp) => {
     const pepper = process.env.OTP_PEPPER || process.env.JWT_SECRET;
     if (!pepper) {
@@ -27,6 +49,32 @@ const buildUserName = (email) => {
     const localPart = email.split("@")[0] || "user";
     return localPart.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 20) || "user";
 };
+const getErrorMessage = (error) => error instanceof Error ? error.message : String(error);
+const logConsoleOtp = (email, otp, reason) => {
+    console.log("Login OTP for local development", {
+        email,
+        otp,
+        expiresInMinutes: OTP_TTL_MINUTES,
+        reason,
+    });
+};
+const logOtpEmailError = (email, error) => {
+    const err = error;
+    console.error("OTP email send failed", {
+        email,
+        name: err?.name,
+        message: err?.message,
+        stack: err?.stack,
+        cause: err?.cause
+            ? {
+                name: err.cause.name,
+                message: err.cause.message,
+                stack: err.cause.stack,
+                code: err.cause.code,
+            }
+            : undefined,
+    });
+};
 const sendLoginOtp = async (email) => {
     const normalizedEmail = normalizeEmail(email);
     const otp = (0, generateOtp_js_1.generateOtp)();
@@ -37,8 +85,53 @@ const sendLoginOtp = async (email) => {
         otpHash: hashOtp(normalizedEmail, otp),
         expiresAt,
     });
-    // ;
-    await (0, sendOtpEmail_js_1.sendOtpEmail)(normalizedEmail, otp);
+    if (useConsoleOtpDelivery) {
+        logConsoleOtp(normalizedEmail, otp, "OTP_DELIVERY_MODE=console");
+        return {
+            message: "OTP generated. Check the backend terminal for the code.",
+            expiresInMinutes: OTP_TTL_MINUTES,
+        };
+    }
+    try {
+        await (0, sendOtpEmail_js_1.sendOtpEmail)(normalizedEmail, otp);
+    }
+    catch (error) {
+        logOtpEmailError(normalizedEmail, error);
+        if (error instanceof Error && error.message === "fetch failed") {
+            try {
+                const probe = await (0, sendOtpEmail_js_1.probeBrevoConnectivity)();
+                console.error("Brevo connectivity probe", {
+                    email: normalizedEmail,
+                    ...probe,
+                });
+            }
+            catch (probeError) {
+                const err = probeError;
+                console.error("Brevo connectivity probe failed", {
+                    email: normalizedEmail,
+                    name: err?.name,
+                    message: err?.message,
+                    stack: err?.stack,
+                    cause: err?.cause
+                        ? {
+                            name: err.cause.name,
+                            message: err.cause.message,
+                            stack: err.cause.stack,
+                            code: err.cause.code,
+                        }
+                        : undefined,
+                });
+            }
+        }
+        if (allowDevOtpFallback) {
+            logConsoleOtp(normalizedEmail, otp, getErrorMessage(error));
+            return {
+                message: "OTP generated. Check the backend terminal for the code.",
+                expiresInMinutes: OTP_TTL_MINUTES,
+            };
+        }
+        throw new OtpDeliveryError();
+    }
     return {
         message: "OTP sent to your email.",
         expiresInMinutes: OTP_TTL_MINUTES,
@@ -82,8 +175,12 @@ const verifyLoginOtp = async (email, otp) => {
         setDefaultsOnInsert: true,
     });
     const accessToken = (0, jwt_js_1.generateAccessToken)(String(user._id), user.role);
+    const refreshToken = (0, jwt_js_1.generateRefreshToken)(String(user._id));
+    user.refreshTokenHash = (0, exports.hashRefreshToken)(refreshToken);
+    await user.save();
     return {
         accessToken,
+        refreshToken,
         user: {
             id: user._id,
             userName: user.userName,
@@ -93,6 +190,18 @@ const verifyLoginOtp = async (email, otp) => {
     };
 };
 exports.verifyLoginOtp = verifyLoginOtp;
+const saveUserRefreshToken = async (userId, refreshToken) => {
+    await user_schema_js_1.User.findByIdAndUpdate(userId, {
+        refreshTokenHash: (0, exports.hashRefreshToken)(refreshToken),
+    });
+};
+exports.saveUserRefreshToken = saveUserRefreshToken;
+const clearUserRefreshToken = async (userId) => {
+    await user_schema_js_1.User.findByIdAndUpdate(userId, {
+        refreshTokenHash: "",
+    });
+};
+exports.clearUserRefreshToken = clearUserRefreshToken;
 const getAuthUser = async (userId) => {
     const user = await user_schema_js_1.User.findById(userId).select("-__v");
     if (!user || !user.isActive) {

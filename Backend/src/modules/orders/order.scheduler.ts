@@ -1,6 +1,7 @@
 import redisClient from "../../config/redis.js";
+import { notifyOrderReady } from "../notifications/orderReady.websocket.js";
 import { Order } from "./order.model.js";
-import { sendFoodReadySms } from "./order.sms.js";
+import { sendFoodReadySmsOnce } from "./order.sms.js";
 
 const FOOD_READY_QUEUE_KEY = "orders:food-ready:queue";
 const FOOD_READY_DELAY_MS = 10 * 60 * 1000;
@@ -16,6 +17,10 @@ export const scheduleFoodReadyNotification = async (
   });
 };
 
+export const clearScheduledFoodReadyNotification = async (orderId: string) => {
+  await redisClient.zRem(FOOD_READY_QUEUE_KEY, orderId);
+};
+
 const processFoodReadyJob = async (orderId: string) => {
   const order = await Order.findById(orderId);
 
@@ -29,13 +34,15 @@ const processFoodReadyJob = async (orderId: string) => {
     return;
   }
 
-  order.orderStatus = "READY";
-  await order.save();
+  const previousStatus = order.orderStatus;
 
-  await sendFoodReadySms(order.customerPhone, order.customerName);
+  if (previousStatus !== "READY") {
+    order.orderStatus = "READY";
+    await order.save();
+    notifyOrderReady(order);
+  }
 
-  order.foodReadySmsSentAt = new Date();
-  await order.save();
+  await sendFoodReadySmsOnce(order);
 
   await redisClient.zRem(FOOD_READY_QUEUE_KEY, orderId);
 };

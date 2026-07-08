@@ -15,6 +15,10 @@ const userSchema = new Schema<IUser>({
         trim: true,
         index : true
     },
+    password: {
+        type: String,
+        select: false
+    },
     role: {
         type: String,
         default: 'user',
@@ -36,6 +40,11 @@ const userSchema = new Schema<IUser>({
     isVerified: {
         type: Boolean,
         default: true,
+    },
+    refreshTokenHash: {
+        type: String,
+        select: false,
+        default: "",
     },
 },
     {

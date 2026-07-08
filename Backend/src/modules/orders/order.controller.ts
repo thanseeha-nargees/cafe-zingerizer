@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import {
   createOrderService,
+  getOrderByIdService,
   getMyOrdersService,
 } from "./order.service.js";
 import { createOrderSchema } from "./order.validation.js";
@@ -76,6 +77,26 @@ export const getMyOrdersController = async (
     res.status(500).json({
       success: false,
       message: "Something went wrong",
+    });
+  }
+};
+
+export const getOrderByIdController = async (
+  req: Request<{ orderId: string }>,
+  res: Response
+) => {
+  try {
+    const order = await getOrderByIdService(req.params.orderId);
+
+    return res.status(200).json({
+      success: true,
+      data: order,
+    });
+  } catch (error) {
+    return res.status(404).json({
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Order not found",
     });
   }
 };

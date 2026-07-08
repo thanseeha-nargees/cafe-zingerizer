@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getFoodReadyAt = exports.startFoodReadyNotificationWorker = exports.scheduleFoodReadyNotification = void 0;
 const redis_js_1 = __importDefault(require("../../config/redis.js"));
+const orderReady_websocket_js_1 = require("../notifications/orderReady.websocket.js");
 const order_model_js_1 = require("./order.model.js");
 const order_sms_js_1 = require("./order.sms.js");
 const FOOD_READY_QUEUE_KEY = "orders:food-ready:queue";
@@ -27,8 +28,12 @@ const processFoodReadyJob = async (orderId) => {
         await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
         return;
     }
-    order.orderStatus = "READY";
-    await order.save();
+    const previousStatus = order.orderStatus;
+    if (previousStatus !== "READY") {
+        order.orderStatus = "READY";
+        await order.save();
+        (0, orderReady_websocket_js_1.notifyOrderReady)(order);
+    }
     await (0, order_sms_js_1.sendFoodReadySms)(order.customerPhone, order.customerName);
     order.foodReadySmsSentAt = new Date();
     await order.save();

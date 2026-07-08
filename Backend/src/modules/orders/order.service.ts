@@ -6,6 +6,7 @@ import {
   scheduleFoodReadyNotification,
 } from "./order.scheduler.js";
 import { CreateOrderInput } from "./order.types.js";
+import { createBookingNotification } from "../notifications/notification.service.js";
 
 export const createOrderService = async (
   userId: string,
@@ -76,6 +77,14 @@ export const createOrderService = async (
   cart.set("items", []);
   await cart.save();
 
+  await createBookingNotification({
+    bookingId: order._id.toString(),
+    userName: customerName,
+    serviceName: orderType,
+    bookingDateTime: (order as any).createdAt ?? new Date(),
+    bookingStatus: order.orderStatus,
+  });
+
   return order;
 };
 
@@ -85,4 +94,17 @@ export const getMyOrdersService = async (
   return await Order.find({ userId }).sort({
     createdAt: -1,
   });
+};
+
+export const getOrderByIdService = async (orderId: string) => {
+  const order = await Order.findById(orderId)
+    .populate("items.menuItemId")
+    .populate("tableId")
+    .populate("userId", "userName email");
+
+  if (!order) {
+    throw new Error("Order not found");
+  }
+
+  return order;
 };

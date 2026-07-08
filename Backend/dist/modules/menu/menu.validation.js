@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createMenuSchema = void 0;
+exports.updateMenuSchema = exports.createMenuSchema = void 0;
 const zod_1 = require("zod");
 const optionalBooleanFromFormData = zod_1.z.preprocess((value) => {
     if (value === undefined || value === null || value === "") {
@@ -24,4 +24,5 @@ exports.createMenuSchema = zod_1.z.object({
     image: zod_1.z.string().optional(),
     isAvailable: optionalBooleanFromFormData,
 });
+exports.updateMenuSchema = exports.createMenuSchema.partial().refine((data) => Object.keys(data).length > 0, "At least one product field is required");
 //# sourceMappingURL=menu.validation.js.map

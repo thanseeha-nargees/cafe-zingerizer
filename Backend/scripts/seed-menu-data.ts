@@ -1,5 +1,11 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import mongoose from "mongoose";
+import path from "node:path";
+
+dotenv.config({
+  path: path.resolve(__dirname, "..", ".env"),
+  quiet: true,
+});
 
 const categories = [
   {

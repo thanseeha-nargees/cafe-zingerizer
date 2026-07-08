@@ -21,7 +21,8 @@ const otpLimiter = (0, express_rate_limit_1.default)({
 router.post("/send-otp", otpLimiter, auth_controller_js_1.sendOtpController);
 router.post("/verify-otp", auth_controller_js_1.verifyOtpController);
 router.post("/otp-verify", auth_controller_js_1.verifyOtpController);
+router.post("/refresh", auth_controller_js_1.refreshTokenController);
 router.get("/me", authMiddleware_js_1.protect, auth_controller_js_1.meController);
-router.post("/logout", authMiddleware_js_1.protect, auth_controller_js_1.logoutController);
+router.post("/logout", auth_controller_js_1.logoutController);
 exports.default = router;
 //# sourceMappingURL=auth.routes.js.map

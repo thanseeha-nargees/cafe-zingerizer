@@ -4,7 +4,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 function VerifyOtp() {
   const location = useLocation();
-  const initialEmail = (location.state as { email?: string } | null)?.email || "";
+  const routeState = (location.state as { email?: string } | null) || {};
+  const initialEmail = routeState.email || "";
   const [email, setEmail] = useState(initialEmail);
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);

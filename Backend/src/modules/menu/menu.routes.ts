@@ -1,13 +1,21 @@
 import { Router } from "express";
-import upload from "../../middleware/uploader.middleware";
+import { adminAuth } from "../../middleware/adminAuth.js";
+import { roleMiddleware } from "../../middleware/roleMiddleware.js";
+import upload from "../../middleware/uploader.middleware.js";
 import {
   createMenuController,
   getMenusController,
-} from "./menu.controller";
+} from "./menu.controller.js";
 
 const router = Router();
 
-router.post("/", upload.single("image"), createMenuController);
+router.post(
+  "/",
+  adminAuth,
+  roleMiddleware("admin"),
+  upload.single("image"),
+  createMenuController
+);
 
 router.get("/", getMenusController);
 

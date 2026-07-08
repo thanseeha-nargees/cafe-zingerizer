@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMyOrdersController = exports.createOrderController = void 0;
+exports.getOrderByIdController = exports.getMyOrdersController = exports.createOrderController = void 0;
 const order_service_js_1 = require("./order.service.js");
 const order_validation_js_1 = require("./order.validation.js");
 const createOrderController = async (req, res) => {
@@ -59,4 +59,20 @@ const getMyOrdersController = async (req, res) => {
     }
 };
 exports.getMyOrdersController = getMyOrdersController;
+const getOrderByIdController = async (req, res) => {
+    try {
+        const order = await (0, order_service_js_1.getOrderByIdService)(req.params.orderId);
+        return res.status(200).json({
+            success: true,
+            data: order,
+        });
+    }
+    catch (error) {
+        return res.status(404).json({
+            success: false,
+            message: error instanceof Error ? error.message : "Order not found",
+        });
+    }
+};
+exports.getOrderByIdController = getOrderByIdController;
 //# sourceMappingURL=order.controller.js.map

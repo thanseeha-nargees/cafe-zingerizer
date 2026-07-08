@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMyOrdersService = exports.createOrderService = void 0;
+exports.getOrderByIdService = exports.getMyOrdersService = exports.createOrderService = void 0;
 const cart_schema_js_1 = require("../cart/cart.schema.js");
 const table_model_js_1 = require("../table/table.model.js");
 const order_model_js_1 = require("./order.model.js");
 const order_scheduler_js_1 = require("./order.scheduler.js");
+const notification_service_js_1 = require("../notifications/notification.service.js");
 const createOrderService = async (userId, orderType, customerName, customerPhone, tableId) => {
     let selectedTable = null;
     if (orderType === "Dining") {
@@ -51,6 +52,13 @@ const createOrderService = async (userId, orderType, customerName, customerPhone
     }
     cart.set("items", []);
     await cart.save();
+    await (0, notification_service_js_1.createBookingNotification)({
+        bookingId: order._id.toString(),
+        userName: customerName,
+        serviceName: orderType,
+        bookingDateTime: order.createdAt ?? new Date(),
+        bookingStatus: order.orderStatus,
+    });
     return order;
 };
 exports.createOrderService = createOrderService;
@@ -60,4 +68,15 @@ const getMyOrdersService = async (userId) => {
     });
 };
 exports.getMyOrdersService = getMyOrdersService;
+const getOrderByIdService = async (orderId) => {
+    const order = await order_model_js_1.Order.findById(orderId)
+        .populate("items.menuItemId")
+        .populate("tableId")
+        .populate("userId", "userName email");
+    if (!order) {
+        throw new Error("Order not found");
+    }
+    return order;
+};
+exports.getOrderByIdService = getOrderByIdService;
 //# sourceMappingURL=order.service.js.map

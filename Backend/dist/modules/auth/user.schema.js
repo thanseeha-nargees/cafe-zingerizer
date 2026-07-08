@@ -16,6 +16,10 @@ const userSchema = new mongoose_1.Schema({
         trim: true,
         index: true
     },
+    password: {
+        type: String,
+        select: false
+    },
     role: {
         type: String,
         default: 'user',
@@ -37,6 +41,11 @@ const userSchema = new mongoose_1.Schema({
     isVerified: {
         type: Boolean,
         default: true,
+    },
+    refreshTokenHash: {
+        type: String,
+        select: false,
+        default: "",
     },
 }, {
     timestamps: true

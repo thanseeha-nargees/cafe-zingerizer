@@ -1,24 +1,30 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendOtpEmail = void 0;
+exports.probeBrevoConnectivity = exports.sendOtpEmail = void 0;
 const brevo_1 = require("@getbrevo/brevo");
-const brevoApiKey = process.env.BREVO_API_KEY;
-const senderEmail = process.env.BREVO_SENDER_EMAIL;
-const senderName = process.env.BREVO_SENDER_NAME || "Zingereizer";
-if (!brevoApiKey) {
-    throw new Error("BREVO_API_KEY is not configured");
-}
-if (!senderEmail) {
-    throw new Error("BREVO_SENDER_EMAIL is not configured");
-}
-const brevo = new brevo_1.BrevoClient({
-    apiKey: brevoApiKey
-});
-const sender = {
-    name: senderName,
-    email: senderEmail
+const getBrevoConfig = () => {
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    const senderEmail = process.env.BREVO_SENDER_EMAIL;
+    const senderName = process.env.BREVO_SENDER_NAME || "Zingereizer";
+    if (!brevoApiKey) {
+        throw new Error("BREVO_API_KEY is not configured");
+    }
+    if (!senderEmail) {
+        throw new Error("BREVO_SENDER_EMAIL is not configured");
+    }
+    return {
+        brevoApiKey,
+        sender: {
+            name: senderName,
+            email: senderEmail
+        }
+    };
 };
 const sendOtpEmail = async (email, otp) => {
+    const { brevoApiKey, sender } = getBrevoConfig();
+    const brevo = new brevo_1.BrevoClient({
+        apiKey: brevoApiKey
+    });
     await brevo.transactionalEmails.sendTransacEmail({
         sender,
         to: [{ email }],
@@ -35,4 +41,22 @@ const sendOtpEmail = async (email, otp) => {
     });
 };
 exports.sendOtpEmail = sendOtpEmail;
+const probeBrevoConnectivity = async () => {
+    const { brevoApiKey } = getBrevoConfig();
+    const response = await fetch("https://api.brevo.com/v3/account", {
+        method: "GET",
+        headers: {
+            "api-key": brevoApiKey,
+            accept: "application/json",
+        },
+    });
+    const body = await response.text();
+    return {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        body,
+    };
+};
+exports.probeBrevoConnectivity = probeBrevoConnectivity;
 //# sourceMappingURL=sendOtpEmail.js.map

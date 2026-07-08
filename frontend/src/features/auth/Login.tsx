@@ -15,7 +15,9 @@ function Login() {
 
     try {
       await api.post("/auth/send-otp", { email });
-      navigate("/otp-verify", { state: { email } });
+      navigate("/otp-verify", {
+        state: { email },
+      });
     } catch (error: any) {
       setError(error.response?.data?.message || "Unable to send OTP");
     } finally {
