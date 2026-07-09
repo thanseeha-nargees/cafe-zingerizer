@@ -13,6 +13,7 @@ const admin_routes_js_1 = __importDefault(require("./modules/admin/admin.routes.
 const category_routes_js_1 = __importDefault(require("./modules/categories/category.routes.js"));
 const menu_routes_js_1 = __importDefault(require("./modules/menu/menu.routes.js"));
 const order_routes_js_1 = __importDefault(require("./modules/orders/order.routes.js"));
+const staff_routes_js_1 = __importDefault(require("./modules/staff/staff.routes.js"));
 const order_scheduler_js_1 = require("./modules/orders/order.scheduler.js");
 const admin_seed_js_1 = require("./modules/auth/admin.seed.js");
 const table_routes_js_1 = __importDefault(require("./modules/table/table.routes.js"));
@@ -30,6 +31,7 @@ app.use((0, cors_1.default)({
 }));
 app.use('/api/auth', auth_routes_js_1.default);
 app.use("/api/admin", admin_routes_js_1.default);
+app.use("/api/staff", staff_routes_js_1.default);
 app.use("/api/categories", category_routes_js_1.default);
 app.use("/api/menu", menu_routes_js_1.default);
 app.use("/api/orders", order_routes_js_1.default);

@@ -6,6 +6,7 @@ import router from "./routes";
 
 
 import tableRoutes from "./modules/table/table.routes.js";
+import staffRoutes from "./modules/staff/staff.routes.js";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api",router)
+app.use("/api/staff", staffRoutes);
 
 app.use("/api/tables", tableRoutes);
 

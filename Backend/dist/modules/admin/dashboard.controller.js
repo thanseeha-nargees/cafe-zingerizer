@@ -24,7 +24,7 @@ const getAdminDashboardController = async (req, res) => {
             orderStatus: { $ne: "CANCELLED" },
         };
         const [totalStaff, totalUsers, totalProducts, totalOrders, revenue, todaysRevenue, todaysOrders, pendingOrders, activeOrders, completedOrders, cancelledOrders, orderStatusBreakdown, topSellingItems, recentOrders,] = await Promise.all([
-            user_schema_js_1.User.countDocuments({ role: "admin" }),
+            user_schema_js_1.User.countDocuments({ role: { $in: ["admin", "staff"] } }),
             user_schema_js_1.User.countDocuments({ role: "user" }),
             menu_schema_js_1.Menu.countDocuments(),
             order_model_js_1.Order.countDocuments(),

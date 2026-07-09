@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/axios";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAppDispatch } from "../../app/hooks";
+import { setCurrentUser } from "./authSlice";
 
 function VerifyOtp() {
   const location = useLocation();
@@ -14,6 +16,26 @@ function VerifyOtp() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+
+  const getApiMessage = (requestError: unknown, fallback: string) => {
+    if (
+      typeof requestError === "object" &&
+      requestError !== null &&
+      "response" in requestError &&
+      typeof requestError.response === "object" &&
+      requestError.response !== null &&
+      "data" in requestError.response &&
+      typeof requestError.response.data === "object" &&
+      requestError.response.data !== null &&
+      "message" in requestError.response.data &&
+      typeof requestError.response.data.message === "string"
+    ) {
+      return requestError.response.data.message;
+    }
+
+    return fallback;
+  };
 
   useEffect(() => {
     if (resendCooldown === 0) {
@@ -34,10 +56,11 @@ function VerifyOtp() {
     setLoading(true);
 
     try {
-      await api.post("/auth/verify-otp", { email, otp });
+      const response = await api.post("/auth/verify-otp", { email, otp });
+      dispatch(setCurrentUser(response.data.user));
       navigate("/", { replace: true });
-    } catch (error: any) {
-      setError(error.response?.data?.message || "OTP verification failed");
+    } catch (requestError: unknown) {
+      setError(getApiMessage(requestError, "OTP verification failed"));
     } finally {
       setLoading(false);
     }
@@ -53,8 +76,8 @@ function VerifyOtp() {
       setOtp("");
       setMessage("A new OTP has been sent to your email.");
       setResendCooldown(30);
-    } catch (error: any) {
-      setError(error.response?.data?.message || "Unable to resend OTP");
+    } catch (requestError: unknown) {
+      setError(getApiMessage(requestError, "Unable to resend OTP"));
     } finally {
       setResendLoading(false);
     }

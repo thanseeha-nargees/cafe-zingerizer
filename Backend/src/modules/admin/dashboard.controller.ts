@@ -47,7 +47,7 @@ export const getAdminDashboardController = async (
       topSellingItems,
       recentOrders,
     ] = await Promise.all([
-      User.countDocuments({ role: "admin" }),
+      User.countDocuments({ role: { $in: ["admin", "staff"] } }),
       User.countDocuments({ role: "user" }),
       Menu.countDocuments(),
       Order.countDocuments(),

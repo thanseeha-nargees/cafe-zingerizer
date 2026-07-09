@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { api } from "../../api/axios";
+import { useAppDispatch, useAppSelector } from "../../app/hooks";
+import { hydrateAuth } from "../../features/auth/authSlice";
 
 interface Props {
   children: React.ReactNode;
@@ -8,31 +9,16 @@ interface Props {
 
 const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
   const location = useLocation();
-  const [status, setStatus] = useState<"checking" | "allowed" | "denied">(
-    "checking"
-  );
+  const dispatch = useAppDispatch();
+  const { currentUser, status } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
-    let mounted = true;
+    if (status === "idle") {
+      void dispatch(hydrateAuth());
+    }
+  }, [dispatch, status]);
 
-    api
-      .get("/auth/me")
-      .then((response) => {
-        if (!mounted) return;
-
-        const role = response.data?.user?.role;
-        setStatus(role === "admin" ? "allowed" : "denied");
-      })
-      .catch(() => {
-        if (mounted) setStatus("denied");
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  if (status === "checking") {
+  if (status === "idle" || status === "checking") {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center text-sm text-stone-600">
         Checking admin session...
@@ -40,7 +26,7 @@ const AdminProtectedRoute: React.FC<Props> = ({ children }) => {
     );
   }
 
-  if (status === "denied") {
+  if (status === "unauthenticated" || currentUser?.role !== "admin") {
     return <Navigate to="/admin/login" replace state={{ from: location }} />;
   }
 

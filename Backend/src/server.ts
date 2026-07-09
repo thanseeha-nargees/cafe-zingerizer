@@ -8,6 +8,7 @@ import adminRoutes from "./modules/admin/admin.routes.js";
 import categoryRoutes from "./modules/categories/category.routes.js";
 import menuRoutes from "./modules/menu/menu.routes.js";
 import orderRoutes from "./modules/orders/order.routes.js";
+import staffRoutes from "./modules/staff/staff.routes.js";
 import { startFoodReadyNotificationWorker } from "./modules/orders/order.scheduler.js";
 import { ensureDefaultSuperAdmin } from "./modules/auth/admin.seed.js";
 import tableRoutes from "./modules/table/table.routes.js";
@@ -30,6 +31,7 @@ app.use(
 );
 app.use('/api/auth', authRoutes)
 app.use("/api/admin", adminRoutes);
+app.use("/api/staff", staffRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/menu",menuRoutes);
 app.use("/api/orders", orderRoutes);

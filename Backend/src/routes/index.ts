@@ -6,6 +6,7 @@ import tableRoutes from "../modules/table/table.routes";
 import orderRoutes from "../modules/orders/order.routes";
 import notificationRoutes from "../modules/notifications/notification.routes";
 import adminRoutes from "../modules/admin/admin.routes.js";
+import staffRoutes from "../modules/staff/staff.routes.js";
 
 const router = Router();
 
@@ -16,6 +17,7 @@ router.use("/tables", tableRoutes);
 router.use("/orders", orderRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/admin", adminRoutes);
+router.use("/staff", staffRoutes);
 
 
 export default router;

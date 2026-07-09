@@ -1,38 +1,12 @@
 import { Request, Response } from "express";
-import mongoose from "mongoose";
-import { notifyOrderReady } from "../notifications/orderReady.websocket.js";
-import { clearScheduledFoodReadyNotification } from "../orders/order.scheduler.js";
 import {
-  sendFoodReadySmsOnce,
-  type FoodReadySmsResult,
-} from "../orders/order.sms.js";
-import { Table } from "../table/table.model.js";
+  ORDER_STATUSES,
+  OrderStatusUpdateError,
+  isOrderStatus,
+  isValidObjectId,
+  updateOrderStatusWithSideEffects,
+} from "../orders/order-status.service.js";
 import { Order } from "../orders/order.model.js";
-
-const ORDER_STATUSES = [
-  "PENDING",
-  "CONFIRMED",
-  "PREPARING",
-  "READY",
-  "COMPLETED",
-  "CANCELLED",
-] as const;
-
-type OrderStatus = (typeof ORDER_STATUSES)[number];
-type FoodReadySmsResponse =
-  | FoodReadySmsResult
-  | {
-      status: "failed";
-      error: string;
-    };
-
-const isValidObjectId = (id: string) => mongoose.Types.ObjectId.isValid(id);
-
-const isOrderStatus = (status: unknown): status is OrderStatus =>
-  typeof status === "string" && ORDER_STATUSES.includes(status as OrderStatus);
-
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
 
 export const getAdminOrdersController = async (req: Request, res: Response) => {
   try {
@@ -101,80 +75,10 @@ export const updateAdminOrderStatusController = async (
       });
     }
 
-    const existingOrder = await Order.findById(req.params.id).select(
-      "orderStatus"
-    );
-
-    if (!existingOrder) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    const previousStatus = existingOrder.orderStatus;
-    const order = await Order.findByIdAndUpdate(
+    const { order, foodReadySms } = await updateOrderStatusWithSideEffects(
       req.params.id,
-      { $set: { orderStatus: nextStatus } },
-      { new: true, runValidators: true }
-    )
-      .populate("items.menuItemId", "name category image price")
-      .populate("tableId", "tableNumber isActive isOccupied")
-      .populate("userId", "userName email");
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    if (
-      ["COMPLETED", "CANCELLED"].includes(nextStatus) &&
-      order.tableId &&
-      order.orderType === "Dining"
-    ) {
-      const tableId =
-        typeof order.tableId === "object" && "_id" in order.tableId
-          ? order.tableId._id
-          : order.tableId;
-
-      await Table.findByIdAndUpdate(tableId, { isOccupied: false });
-
-      await order.populate("tableId", "tableNumber isActive isOccupied");
-    }
-
-    let foodReadySms: FoodReadySmsResponse | null = null;
-
-    if (nextStatus === "READY" && previousStatus !== "READY") {
-      notifyOrderReady(order);
-
-      try {
-        foodReadySms = await sendFoodReadySmsOnce(order);
-
-        await clearScheduledFoodReadyNotification(String(order._id)).catch(
-          (error) => {
-            console.log(
-              "food ready notification queue cleanup failed",
-              getErrorMessage(error)
-            );
-          }
-        );
-      } catch (error) {
-        foodReadySms = {
-          status: "failed",
-          error: getErrorMessage(error),
-        };
-
-        console.log(
-          "food ready SMS failed",
-          JSON.stringify({
-            orderId: String(order._id),
-            error: foodReadySms.error,
-          })
-        );
-      }
-    }
+      nextStatus
+    );
 
     return res.status(200).json({
       success: true,
@@ -186,6 +90,13 @@ export const updateAdminOrderStatusController = async (
           : "Order status updated",
     });
   } catch (error: any) {
+    if (error instanceof OrderStatusUpdateError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to update order status",

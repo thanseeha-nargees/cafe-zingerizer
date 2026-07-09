@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import VerifyOtp from "./features/auth/VerifyOtp";
 import Login from "./features/auth/Login";
@@ -19,6 +19,13 @@ import StaffPage from "./admin/pages/Staff";
 import UsersPage from "./admin/pages/Users";
 import ProductsPage from "./admin/pages/Products";
 import OrdersPage from "./admin/pages/Orders";
+import StaffProtectedRoute from "./staff/routes/StaffProtectedRoute";
+import StaffLayout from "./staff/components/StaffLayout";
+import StaffLogin from "./staff/pages/Login";
+import StaffDashboard from "./staff/pages/Dashboard";
+import AssignedTables from "./staff/pages/AssignedTables";
+import ActiveOrders from "./staff/pages/ActiveOrders";
+import StaffOrderHistory from "./staff/pages/OrderHistory";
 
 
 import "./assets/i18n";
@@ -43,6 +50,7 @@ function App() {
         <Route path="/otp-verify" element={<VerifyOtp />} />
         <Route path="/login" element={<Login />} />
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/staff/login" element={<StaffLogin />} />
 
         {/* Admin Panel routes */}
         <Route
@@ -60,6 +68,25 @@ function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="orders" element={<OrdersPage />} />
+        </Route>
+
+        <Route
+          path="/staff"
+          element={
+            <StaffProtectedRoute>
+              <StaffLayout />
+            </StaffProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/staff/dashboard" replace />} />
+          <Route path="dashboard" element={<StaffDashboard />} />
+          <Route path="tables" element={<AssignedTables />} />
+          <Route
+            path="orders"
+            element={<Navigate to="/staff/orders/active" replace />}
+          />
+          <Route path="orders/active" element={<ActiveOrders />} />
+          <Route path="orders/history" element={<StaffOrderHistory />} />
         </Route>
       </Routes>
     </>

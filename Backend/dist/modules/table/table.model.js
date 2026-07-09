@@ -27,6 +27,12 @@ const tableSchema = new mongoose_1.default.Schema({
         type: Boolean,
         default: false,
     },
+    assignedStaff: {
+        type: mongoose_1.default.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+        index: true,
+    },
 }, {
     timestamps: true,
 });

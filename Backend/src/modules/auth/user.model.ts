@@ -2,7 +2,7 @@ export interface IUser {
     userName: string;
     email: string;
     password?: string;
-    role: "user" | "admin";
+    role: "user" | "admin" | "staff";
     phoneNumber?: string;
     profileImage: string;
     isActive: boolean;
@@ -15,7 +15,7 @@ export interface AuthUser {
     role: string;
 }
 
-export type userRole = "user" | "admin";
+export type userRole = "user" | "admin" | "staff";
 
 export interface AuthUserPayload {
     userId: string;

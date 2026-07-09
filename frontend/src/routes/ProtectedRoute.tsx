@@ -1,34 +1,23 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Navigate } from "react-router-dom";
-import { api } from "../api/axios";
+import { useAppDispatch, useAppSelector } from "../app/hooks";
+import { hydrateAuth } from "../features/auth/authSlice";
 
 interface Props {
   children: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<Props> = ({ children }) => {
-  const [status, setStatus] = useState<"checking" | "allowed" | "denied">(
-    "checking"
-  );
+  const dispatch = useAppDispatch();
+  const status = useAppSelector((state) => state.auth.status);
 
   useEffect(() => {
-    let mounted = true;
+    if (status === "idle") {
+      void dispatch(hydrateAuth());
+    }
+  }, [dispatch, status]);
 
-    api
-      .get("/auth/me")
-      .then(() => {
-        if (mounted) setStatus("allowed");
-      })
-      .catch(() => {
-        if (mounted) setStatus("denied");
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  if (status === "checking") {
+  if (status === "idle" || status === "checking") {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center text-sm text-stone-600">
         Checking session...
@@ -36,7 +25,7 @@ const ProtectedRoute: React.FC<Props> = ({ children }) => {
     );
   }
 
-  if (status === "denied") {
+  if (status === "unauthenticated") {
     return <Navigate to="/login" replace />;
   }
 

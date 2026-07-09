@@ -1,6 +1,8 @@
 import { Globe2, LogOut, Utensils } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
+import { useAppDispatch } from "../app/hooks";
+import { clearCurrentUser } from "../features/auth/authSlice";
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   isActive
@@ -9,9 +11,11 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 const Navbar = () => {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
   const handleLogout = async () => {
     await api.post("/auth/logout").catch(() => undefined);
+    dispatch(clearCurrentUser());
     navigate("/login", { replace: true });
   };
 

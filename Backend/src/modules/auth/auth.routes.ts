@@ -22,6 +22,7 @@ const otpLimiter = rateLimit({
   },
 });
 
+
 router.post("/send-otp", otpLimiter, sendOtpController);
 router.post("/verify-otp", verifyOtpController);
 router.post("/otp-verify", verifyOtpController);

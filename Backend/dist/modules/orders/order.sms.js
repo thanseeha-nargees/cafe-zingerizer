@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendFoodReadySms = void 0;
+exports.sendFoodReadySmsOnce = exports.sendFoodReadySms = void 0;
 const getFoodReadyMessage = (customerName) => `Hello ${customerName},
 
 Your order is ready!
@@ -31,8 +31,27 @@ const sendFoodReadySms = async (phoneNumber, customerName) => {
         }),
     });
     if (!response.ok) {
-        throw new Error("Failed to send food ready SMS");
+        const responseBody = await response.text().catch(() => "");
+        const details = responseBody ? `: ${responseBody.slice(0, 300)}` : "";
+        throw new Error(`Failed to send food ready SMS (${response.status} ${response.statusText})${details}`);
     }
 };
 exports.sendFoodReadySms = sendFoodReadySms;
+const sendFoodReadySmsOnce = async (order) => {
+    if (order.foodReadySmsSentAt) {
+        return {
+            status: "already_sent",
+            sentAt: order.foodReadySmsSentAt,
+        };
+    }
+    await (0, exports.sendFoodReadySms)(order.customerPhone, order.customerName);
+    const sentAt = new Date();
+    order.foodReadySmsSentAt = sentAt;
+    await order.save();
+    return {
+        status: "sent",
+        sentAt,
+    };
+};
+exports.sendFoodReadySmsOnce = sendFoodReadySmsOnce;
 //# sourceMappingURL=order.sms.js.map

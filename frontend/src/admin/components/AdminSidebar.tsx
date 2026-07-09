@@ -11,6 +11,8 @@ import {
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { api } from "../../api/axios";
+import { useAppDispatch } from "../../app/hooks";
+import { clearCurrentUser } from "../../features/auth/authSlice";
 
 const navItems = [
   { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -22,6 +24,7 @@ const navItems = [
 
 function AdminSidebar() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -29,6 +32,7 @@ function AdminSidebar() {
 
     setLoggingOut(true);
     await api.post("/auth/logout").catch(() => undefined);
+    dispatch(clearCurrentUser());
     navigate("/admin/login", { replace: true });
   };
 

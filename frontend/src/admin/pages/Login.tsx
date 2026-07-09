@@ -1,41 +1,50 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../api/axios";
+import { useAppDispatch, useAppSelector } from "../../app/hooks";
+import { hydrateAuth, setCurrentUser } from "../../features/auth/authSlice";
 
 const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(com|in|org|net|edu|co)$/;
 
 function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [checkingSession, setCheckingSession] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useAppDispatch();
+  const { currentUser, status } = useAppSelector((state) => state.auth);
+  const checkingSession = status === "idle" || status === "checking";
+
+  const getApiMessage = (requestError: unknown, fallback: string) => {
+    if (
+      typeof requestError === "object" &&
+      requestError !== null &&
+      "response" in requestError &&
+      typeof requestError.response === "object" &&
+      requestError.response !== null &&
+      "data" in requestError.response &&
+      typeof requestError.response.data === "object" &&
+      requestError.response.data !== null &&
+      "message" in requestError.response.data &&
+      typeof requestError.response.data.message === "string"
+    ) {
+      return requestError.response.data.message;
+    }
+
+    return fallback;
+  };
 
   useEffect(() => {
-    let mounted = true;
+    if (status === "idle") {
+      void dispatch(hydrateAuth());
+    }
 
-    api
-      .get("/auth/me")
-      .then((response) => {
-        if (!mounted) return;
-
-        if (response.data?.user?.role === "admin") {
-          navigate("/admin/dashboard", { replace: true });
-          return;
-        }
-
-        setCheckingSession(false);
-      })
-      .catch(() => {
-        if (mounted) setCheckingSession(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [navigate]);
+    if (status === "authenticated" && currentUser?.role === "admin") {
+      navigate("/admin/dashboard", { replace: true });
+    }
+  }, [currentUser?.role, dispatch, navigate, status]);
 
   const validateForm = () => {
     if (!emailRegex.test(email.trim())) {
@@ -63,10 +72,11 @@ function AdminLogin() {
     setLoading(true);
 
     try {
-      await api.post("/admin/login", {
+      const response = await api.post("/admin/login", {
         email: email.trim().toLowerCase(),
         password,
       });
+      dispatch(setCurrentUser(response.data.user));
 
       const from = (location.state as { from?: { pathname?: string } } | null)
         ?.from?.pathname;
@@ -74,8 +84,8 @@ function AdminLogin() {
       navigate(from && from !== "/admin/login" ? from : "/admin/dashboard", {
         replace: true,
       });
-    } catch (error: any) {
-      setError(error.response?.data?.message || "Admin login failed");
+    } catch (requestError: unknown) {
+      setError(getApiMessage(requestError, "Admin login failed"));
     } finally {
       setLoading(false);
     }

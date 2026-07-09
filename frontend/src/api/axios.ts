@@ -13,13 +13,20 @@ type RetryRequestConfig = InternalAxiosRequestConfig & {
 let refreshRequest: Promise<void> | null = null;
 
 const isLoginPage = () =>
-  ["/login", "/admin/login", "/otp-verify"].includes(window.location.pathname);
+  ["/login", "/admin/login", "/staff/login", "/otp-verify"].includes(
+    window.location.pathname
+  );
 
 const redirectAfterAuthFailure = () => {
   if (isLoginPage()) return;
 
   if (window.location.pathname.startsWith("/admin")) {
     window.location.assign("/admin/login");
+    return;
+  }
+
+  if (window.location.pathname.startsWith("/staff")) {
+    window.location.assign("/staff/login");
     return;
   }
 
@@ -38,6 +45,7 @@ api.interceptors.response.use(
       originalRequest._retry ||
       requestUrl.includes("/auth/refresh") ||
       requestUrl.includes("/admin/login") ||
+      requestUrl.includes("/staff/login") ||
       requestUrl.includes("/auth/send-otp") ||
       requestUrl.includes("/auth/verify-otp") ||
       requestUrl.includes("/auth/otp-verify")
