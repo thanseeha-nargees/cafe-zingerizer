@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
 import { useAppSelector } from "../app/hooks";
+import { subscribeOrderSocket } from "../utils/orderSocket";
 
 type NotificationItem = {
   _id: string;
@@ -50,7 +51,6 @@ type NotificationBellProps = {
 };
 
 const filterOptions: NotificationFilter[] = ["all", "unread", "read"];
-const reconnectDelayMs = 3000;
 
 const accentClasses = {
   orange: {
@@ -67,25 +67,6 @@ const accentClasses = {
     activeTab: "bg-teal-700 text-white",
     link: "text-teal-700",
   },
-};
-
-const getNotificationSocketUrl = () => {
-  const configuredUrl = import.meta.env.VITE_ORDER_SOCKET_URL;
-
-  if (configuredUrl) {
-    return configuredUrl;
-  }
-
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-  const url = new URL(apiUrl, window.location.origin);
-  const basePath = url.pathname.replace(/\/api\/?$/, "");
-
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = `${basePath}/ws/orders`.replace(/\/{2,}/g, "/");
-  url.search = "";
-  url.hash = "";
-
-  return url.toString();
 };
 
 const isNotificationPayload = (
@@ -196,54 +177,22 @@ function NotificationBell({ accent = "orange" }: NotificationBellProps) {
   useEffect(() => {
     if (!currentUser) return undefined;
 
-    let socket: WebSocket | null = null;
-    let reconnectTimer: number | undefined;
-    let closedByEffect = false;
+    return subscribeOrderSocket((payload) => {
+      if (!isNotificationPayload(payload)) return;
 
-    const connect = () => {
-      socket = new WebSocket(getNotificationSocketUrl());
+      setUnreadCount((count) =>
+        Math.max(count + (payload.unreadDelta || 0), 0)
+      );
 
-      socket.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data) as unknown;
-
-          if (!isNotificationPayload(payload)) return;
-
-          setUnreadCount((count) =>
-            Math.max(count + (payload.unreadDelta || 0), 0)
-          );
-
-          setNotifications((current) => {
-            if (filter === "read") return current;
-            if (current.some((item) => item._id === payload.notification._id)) {
-              return current;
-            }
-
-            return [payload.notification, ...current].slice(0, 30);
-          });
-        } catch {
-          // Ignore non-notification socket messages.
+      setNotifications((current) => {
+        if (filter === "read") return current;
+        if (current.some((item) => item._id === payload.notification._id)) {
+          return current;
         }
-      };
 
-      socket.onclose = () => {
-        if (closedByEffect) return;
-
-        reconnectTimer = window.setTimeout(connect, reconnectDelayMs);
-      };
-    };
-
-    connect();
-
-    return () => {
-      closedByEffect = true;
-
-      if (reconnectTimer) {
-        window.clearTimeout(reconnectTimer);
-      }
-
-      socket?.close();
-    };
+        return [payload.notification, ...current].slice(0, 30);
+      });
+    });
   }, [currentUser, filter]);
 
   useEffect(() => {

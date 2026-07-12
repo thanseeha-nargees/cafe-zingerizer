@@ -195,7 +195,7 @@ const markNotificationRead = async (notificationId, userId, role) => {
     const notification = await notification_model_js_1.Notification.findOneAndUpdate(filters, {
         isRead: true,
         readAt: new Date(),
-    }, { new: true });
+    }, { returnDocument: "after" });
     if (!notification) {
         throw new Error("Notification not found");
     }
@@ -221,7 +221,7 @@ const registerPushSubscription = async (userId, role, subscription, userAgent = 
         endpoint: subscription.endpoint,
         keys: subscription.keys,
         userAgent,
-    }, { upsert: true, new: true, runValidators: true });
+    }, { upsert: true, returnDocument: "after", runValidators: true });
 };
 exports.registerPushSubscription = registerPushSubscription;
 const unregisterPushSubscription = async (userId, endpoint) => {
@@ -257,10 +257,21 @@ const describeOrder = (order) => {
     return tableNumber ? `Order #${orderId} for Table ${tableNumber}` : `Order #${orderId}`;
 };
 exports.describeOrder = describeOrder;
+const getAssignedStaffId = (order) => {
+    const assignedStaffId = getId(order.assignedStaff);
+    if (assignedStaffId)
+        return assignedStaffId;
+    if (order.tableId &&
+        typeof order.tableId === "object" &&
+        "assignedStaff" in order.tableId) {
+        return getId(order.tableId.assignedStaff);
+    }
+    return "";
+};
 const createOrderLifecycleNotifications = async (order) => {
     const orderId = getId(order._id);
     const customerId = getId(order.userId);
-    const assignedStaffId = getId(order.assignedStaff);
+    const assignedStaffId = getAssignedStaffId(order);
     const orderLabel = (0, exports.describeOrder)(order);
     const tasks = [
         (0, exports.createNotificationsForRole)("admin", {
@@ -301,10 +312,11 @@ const createOrderStatusNotifications = async (order, nextStatus, previousStatus)
         return;
     const orderId = getId(order._id);
     const customerId = getId(order.userId);
-    const assignedStaffId = getId(order.assignedStaff);
+    const assignedStaffId = getAssignedStaffId(order);
     const title = (0, exports.getStatusTitle)(nextStatus);
     const orderLabel = (0, exports.describeOrder)(order);
     const message = `${orderLabel} is now ${nextStatus.toLowerCase()}.`;
+    const metadata = { orderId, status: nextStatus, previousStatus };
     const tasks = [];
     if (customerId) {
         tasks.push((0, exports.createNotification)({
@@ -314,7 +326,7 @@ const createOrderStatusNotifications = async (order, nextStatus, previousStatus)
             message,
             type: `ORDER_${nextStatus}`,
             link: (0, exports.getOrderNotificationLink)("user"),
-            metadata: { orderId, status: nextStatus },
+            metadata,
         }));
     }
     if (assignedStaffId) {
@@ -325,7 +337,7 @@ const createOrderStatusNotifications = async (order, nextStatus, previousStatus)
             message,
             type: `ORDER_${nextStatus}`,
             link: (0, exports.getOrderNotificationLink)("staff"),
-            metadata: { orderId, status: nextStatus },
+            metadata,
         }));
     }
     tasks.push((0, exports.createNotificationsForRole)("admin", {
@@ -333,7 +345,7 @@ const createOrderStatusNotifications = async (order, nextStatus, previousStatus)
         message,
         type: `ORDER_${nextStatus}`,
         link: (0, exports.getOrderNotificationLink)("admin"),
-        metadata: { orderId, status: nextStatus },
+        metadata,
     }));
     await Promise.all(tasks);
 };

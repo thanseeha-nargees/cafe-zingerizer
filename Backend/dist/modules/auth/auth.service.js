@@ -170,7 +170,7 @@ const verifyLoginOtp = async (email, otp) => {
             isVerified: true,
         },
     }, {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true,
     });

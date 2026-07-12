@@ -46,11 +46,6 @@ const Navbar = () => {
             History
           </NavLink>
         </li>
-        <li>
-          <NavLink to="/reviews" className={navLinkClass}>
-            Reviews
-          </NavLink>
-        </li>
       </ul>
 
       <div className="flex items-center gap-3">

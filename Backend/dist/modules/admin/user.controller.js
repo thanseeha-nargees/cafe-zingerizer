@@ -120,7 +120,7 @@ const updateAdminUserController = async (req, res) => {
         if (validation.data.isActive === false) {
             updatePayload.refreshTokenHash = "";
         }
-        const user = await user_schema_js_1.User.findOneAndUpdate({ _id: req.params.id, role: "user" }, { $set: updatePayload }, { new: true, runValidators: true })
+        const user = await user_schema_js_1.User.findOneAndUpdate({ _id: req.params.id, role: "user" }, { $set: updatePayload }, { returnDocument: "after", runValidators: true })
             .select("-password -refreshTokenHash -__v")
             .lean();
         if (!user) {

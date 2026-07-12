@@ -147,7 +147,7 @@ export const updateAdminProductController = async (
       req.params.id,
       validation.data,
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
       }
     );

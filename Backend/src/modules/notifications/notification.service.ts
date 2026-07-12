@@ -309,7 +309,7 @@ export const markNotificationRead = async (
       isRead: true,
       readAt: new Date(),
     },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (!notification) {
@@ -351,7 +351,7 @@ export const registerPushSubscription = async (
       keys: subscription.keys,
       userAgent,
     },
-    { upsert: true, new: true, runValidators: true }
+    { upsert: true, returnDocument: "after", runValidators: true }
   );
 };
 
@@ -392,10 +392,26 @@ export const describeOrder = (order: any) => {
   return tableNumber ? `Order #${orderId} for Table ${tableNumber}` : `Order #${orderId}`;
 };
 
+const getAssignedStaffId = (order: any) => {
+  const assignedStaffId = getId(order.assignedStaff);
+
+  if (assignedStaffId) return assignedStaffId;
+
+  if (
+    order.tableId &&
+    typeof order.tableId === "object" &&
+    "assignedStaff" in order.tableId
+  ) {
+    return getId(order.tableId.assignedStaff);
+  }
+
+  return "";
+};
+
 export const createOrderLifecycleNotifications = async (order: any) => {
   const orderId = getId(order._id);
   const customerId = getId(order.userId);
-  const assignedStaffId = getId(order.assignedStaff);
+  const assignedStaffId = getAssignedStaffId(order);
   const orderLabel = describeOrder(order);
 
   const tasks: Promise<unknown>[] = [
@@ -448,10 +464,11 @@ export const createOrderStatusNotifications = async (
 
   const orderId = getId(order._id);
   const customerId = getId(order.userId);
-  const assignedStaffId = getId(order.assignedStaff);
+  const assignedStaffId = getAssignedStaffId(order);
   const title = getStatusTitle(nextStatus);
   const orderLabel = describeOrder(order);
   const message = `${orderLabel} is now ${nextStatus.toLowerCase()}.`;
+  const metadata = { orderId, status: nextStatus, previousStatus };
   const tasks: Promise<unknown>[] = [];
 
   if (customerId) {
@@ -463,7 +480,7 @@ export const createOrderStatusNotifications = async (
         message,
         type: `ORDER_${nextStatus}`,
         link: getOrderNotificationLink("user"),
-        metadata: { orderId, status: nextStatus },
+        metadata,
       })
     );
   }
@@ -477,7 +494,7 @@ export const createOrderStatusNotifications = async (
         message,
         type: `ORDER_${nextStatus}`,
         link: getOrderNotificationLink("staff"),
-        metadata: { orderId, status: nextStatus },
+        metadata,
       })
     );
   }
@@ -488,7 +505,7 @@ export const createOrderStatusNotifications = async (
       message,
       type: `ORDER_${nextStatus}`,
       link: getOrderNotificationLink("admin"),
-      metadata: { orderId, status: nextStatus },
+      metadata,
     })
   );
 

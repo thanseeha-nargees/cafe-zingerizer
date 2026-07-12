@@ -81,7 +81,7 @@ export const updateOrderStatusWithSideEffects = async (
   const order = await Order.findByIdAndUpdate(
     orderId,
     { $set: statusUpdate },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   )
     .populate("items.menuItemId", "name category image price")
     .populate({

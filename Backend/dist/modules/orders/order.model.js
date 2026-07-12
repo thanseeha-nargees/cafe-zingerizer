@@ -97,6 +97,10 @@ const orderSchema = new mongoose_1.default.Schema({
         type: Date,
         default: null,
     },
+    preparingStartedAt: {
+        type: Date,
+        default: null,
+    },
     estimatedReadyAt: {
         type: Date,
         default: null,

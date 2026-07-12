@@ -60,7 +60,7 @@ const getProductRatingSummary = async (productId) => {
 const recalculateProductRating = async (productId) => {
     const summary = await getProductRatingSummary(productId);
     await menu_schema_js_1.Menu.findByIdAndUpdate(productId, summary, {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
     });
     return summary;
@@ -282,7 +282,7 @@ const getAdminReviewsService = async ({ search = "", productId = "", rating = ""
 exports.getAdminReviewsService = getAdminReviewsService;
 const updateAdminReviewVisibilityService = async (reviewId, isHidden) => {
     ensureObjectId(reviewId, "review id");
-    const review = await review_model_js_1.Review.findByIdAndUpdate(reviewId, { isHidden }, { new: true, runValidators: true });
+    const review = await review_model_js_1.Review.findByIdAndUpdate(reviewId, { isHidden }, { returnDocument: "after", runValidators: true });
     if (!review) {
         throw new ReviewError("Review not found", 404);
     }

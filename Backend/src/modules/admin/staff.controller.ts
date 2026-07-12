@@ -553,7 +553,7 @@ export const updateAdminStaffController = async (
     const updatedStaff = await User.findOneAndUpdate(
       { _id: req.params.id, role: { $in: staffRoleValues } },
       { $set: updatePayload },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     )
       .select("-password -refreshTokenHash -__v")
       .lean();

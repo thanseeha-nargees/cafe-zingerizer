@@ -29,21 +29,20 @@ const processFoodReadyJob = async (orderId) => {
         await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
         return;
     }
-    if (["COMPLETED", "CANCELLED"].includes(order.orderStatus)) {
+    if (order.orderStatus !== "PREPARING" ||
+        ["COMPLETED", "CANCELLED"].includes(order.orderStatus)) {
         await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
         return;
     }
     const previousStatus = order.orderStatus;
-    if (previousStatus !== "READY") {
-        order.orderStatus = "READY";
-        await order.save();
-        await order.populate("userId", "userName email");
-        await order.populate("assignedStaff", "userName email role isActive");
-        await order.populate("tableId", "tableNumber isActive isOccupied assignedStaff");
-        await (0, notification_service_js_1.createOrderStatusNotifications)(order, "READY", previousStatus);
-        (0, orderReady_websocket_js_1.notifyOrderReady)(order);
-        (0, orderReady_websocket_js_1.notifyOrderStatusUpdated)(order);
-    }
+    order.orderStatus = "READY";
+    await order.save();
+    await order.populate("userId", "userName email");
+    await order.populate("assignedStaff", "userName email role isActive");
+    await order.populate("tableId", "tableNumber isActive isOccupied assignedStaff");
+    await (0, notification_service_js_1.createOrderStatusNotifications)(order, "READY", previousStatus);
+    (0, orderReady_websocket_js_1.notifyOrderReady)(order);
+    (0, orderReady_websocket_js_1.notifyOrderStatusUpdated)(order);
     await (0, order_sms_js_1.sendFoodReadySmsOnce)(order);
     await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
 };
@@ -62,7 +61,7 @@ const restorePendingFoodReadyJobs = async () => {
     const orders = await order_model_js_1.Order.find({
         foodReadyAt: { $ne: null },
         foodReadySmsSentAt: null,
-        orderStatus: { $nin: ["COMPLETED", "CANCELLED"] },
+        orderStatus: "PREPARING",
     }).select("_id foodReadyAt");
     for (const order of orders) {
         if (order.foodReadyAt) {

@@ -4,7 +4,6 @@ exports.getOrderByIdService = exports.getMyOrdersService = exports.createOrderSe
 const cart_schema_js_1 = require("../cart/cart.schema.js");
 const table_model_js_1 = require("../table/table.model.js");
 const order_model_js_1 = require("./order.model.js");
-const order_scheduler_js_1 = require("./order.scheduler.js");
 const notification_service_js_1 = require("../notifications/notification.service.js");
 const orderReady_websocket_js_1 = require("../notifications/orderReady.websocket.js");
 const createOrderService = async (userId, orderType, customerName, customerPhone, tableId, options = {}) => {
@@ -45,10 +44,6 @@ const createOrderService = async (userId, orderType, customerName, customerPhone
     const confirmedAt = isPaidOrder
         ? options.payment?.transactionDate || new Date()
         : null;
-    const estimatedReadyAt = confirmedAt
-        ? (0, order_scheduler_js_1.getEstimatedReadyAt)(confirmedAt)
-        : (0, order_scheduler_js_1.getFoodReadyAt)();
-    const foodReadyAt = estimatedReadyAt;
     const order = await order_model_js_1.Order.create({
         userId,
         items: orderItems,
@@ -66,10 +61,7 @@ const createOrderService = async (userId, orderType, customerName, customerPhone
         razorpayOrderId: options.payment?.razorpayOrderId || "",
         transactionDate: options.payment?.transactionDate || null,
         confirmedAt,
-        estimatedReadyAt,
-        foodReadyAt,
     });
-    await (0, order_scheduler_js_1.scheduleFoodReadyNotification)(order._id.toString(), foodReadyAt);
     if (selectedTable) {
         selectedTable.isOccupied = true;
         await selectedTable.save();

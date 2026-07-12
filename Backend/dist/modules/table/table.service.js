@@ -136,7 +136,7 @@ const updateTableStatusService = async (tableId, data) => {
     const table = await table_model_js_1.Table.findByIdAndUpdate(tableId, {
         ...(data.isOccupied !== undefined && { isOccupied: data.isOccupied }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
-    }, { new: true, runValidators: true });
+    }, { returnDocument: "after", runValidators: true });
     if (!table) {
         throw new Error("Table not found");
     }

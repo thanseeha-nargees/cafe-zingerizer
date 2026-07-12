@@ -37,7 +37,18 @@ const updateOrderStatusWithSideEffects = async (orderId, nextStatus) => {
         throw new OrderStatusUpdateError("Order not found", 404);
     }
     const previousStatus = existingOrder.orderStatus;
-    const order = await order_model_js_1.Order.findByIdAndUpdate(orderId, { $set: { orderStatus: nextStatus } }, { new: true, runValidators: true })
+    const statusUpdate = { orderStatus: nextStatus };
+    const shouldStartPreparationTimer = nextStatus === "PREPARING" && previousStatus !== "PREPARING";
+    const shouldClearPreparationTimer = previousStatus === "PREPARING" && nextStatus !== "PREPARING";
+    if (shouldStartPreparationTimer) {
+        const preparingStartedAt = new Date();
+        const estimatedReadyAt = (0, order_scheduler_js_1.getEstimatedReadyAt)(preparingStartedAt);
+        statusUpdate.preparingStartedAt = preparingStartedAt;
+        statusUpdate.estimatedReadyAt = estimatedReadyAt;
+        statusUpdate.foodReadyAt = estimatedReadyAt;
+        statusUpdate.foodReadySmsSentAt = null;
+    }
+    const order = await order_model_js_1.Order.findByIdAndUpdate(orderId, { $set: statusUpdate }, { returnDocument: "after", runValidators: true })
         .populate("items.menuItemId", "name category image price")
         .populate({
         path: "tableId",
@@ -51,6 +62,16 @@ const updateOrderStatusWithSideEffects = async (orderId, nextStatus) => {
         .populate("userId", "userName email");
     if (!order) {
         throw new OrderStatusUpdateError("Order not found", 404);
+    }
+    if (shouldStartPreparationTimer && order.estimatedReadyAt) {
+        await (0, order_scheduler_js_1.scheduleFoodReadyNotification)(String(order._id), order.estimatedReadyAt).catch((error) => {
+            console.log("food ready notification queue schedule failed", getErrorMessage(error));
+        });
+    }
+    else if (shouldClearPreparationTimer) {
+        await (0, order_scheduler_js_1.clearScheduledFoodReadyNotification)(String(order._id)).catch((error) => {
+            console.log("food ready notification queue cleanup failed", getErrorMessage(error));
+        });
     }
     if (["COMPLETED", "CANCELLED"].includes(nextStatus) &&
         order.tableId &&

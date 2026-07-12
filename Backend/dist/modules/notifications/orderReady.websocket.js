@@ -210,10 +210,12 @@ const getAssignedStaffId = (order) => {
     return "";
 };
 const notifyOrderEvent = (order, type) => {
+    const userId = getId(order.userId);
     const assignedStaffId = getAssignedStaffId(order);
     const payload = {
         type,
         orderId: getId(order._id),
+        userId,
         orderStatus: order.orderStatus,
         customerName: order.customerName,
         tableId: getId(order.tableId),
@@ -221,6 +223,9 @@ const notifyOrderEvent = (order, type) => {
         sentAt: new Date().toISOString(),
     };
     writePayload(clientsByRole.get("admin"), payload);
+    if (userId) {
+        writePayload(clientsByUserId.get(userId), payload);
+    }
     if (assignedStaffId) {
         writePayload(clientsByUserId.get(assignedStaffId), payload);
     }

@@ -456,7 +456,7 @@ const updateAdminStaffController = async (req, res) => {
         if (validation.data.password) {
             updatePayload.password = await (0, password_js_1.hashPassword)(validation.data.password);
         }
-        const updatedStaff = await user_schema_js_1.User.findOneAndUpdate({ _id: req.params.id, role: { $in: staffRoleValues } }, { $set: updatePayload }, { new: true, runValidators: true })
+        const updatedStaff = await user_schema_js_1.User.findOneAndUpdate({ _id: req.params.id, role: { $in: staffRoleValues } }, { $set: updatePayload }, { returnDocument: "after", runValidators: true })
             .select("-password -refreshTokenHash -__v")
             .lean();
         if (nextRole !== "staff" || !nextIsActive) {

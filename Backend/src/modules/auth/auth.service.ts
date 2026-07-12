@@ -222,7 +222,7 @@ export const verifyLoginOtp = async (email: string, otp: string) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       upsert: true,
       setDefaultsOnInsert: true,
     }

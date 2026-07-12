@@ -199,7 +199,7 @@ export const updateTableStatusService = async (
       ...(data.isOccupied !== undefined && { isOccupied: data.isOccupied }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
     },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   );
 
   if (!table) {

@@ -71,7 +71,7 @@ export const recalculateProductRating = async (productId: string) => {
   const summary = await getProductRatingSummary(productId);
 
   await Menu.findByIdAndUpdate(productId, summary, {
-    new: true,
+    returnDocument: "after",
     runValidators: true,
   });
 
@@ -409,7 +409,7 @@ export const updateAdminReviewVisibilityService = async (
   const review = await Review.findByIdAndUpdate(
     reviewId,
     { isHidden },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   );
 
   if (!review) {

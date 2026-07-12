@@ -35,6 +35,7 @@ type OrderReadyPayload = {
 type OrderEventPayload = {
   type: "ORDER_CREATED" | "ORDER_STATUS_UPDATED";
   orderId: string;
+  userId?: string;
   orderStatus?: string;
   customerName?: string;
   tableId?: string;
@@ -319,10 +320,12 @@ const notifyOrderEvent = (
   order: OrderEventSource,
   type: OrderEventPayload["type"]
 ) => {
+  const userId = getId(order.userId);
   const assignedStaffId = getAssignedStaffId(order);
   const payload: OrderEventPayload = {
     type,
     orderId: getId(order._id),
+    userId,
     orderStatus: order.orderStatus,
     customerName: order.customerName,
     tableId: getId(order.tableId),
@@ -331,6 +334,10 @@ const notifyOrderEvent = (
   };
 
   writePayload(clientsByRole.get("admin"), payload);
+
+  if (userId) {
+    writePayload(clientsByUserId.get(userId), payload);
+  }
 
   if (assignedStaffId) {
     writePayload(clientsByUserId.get(assignedStaffId), payload);

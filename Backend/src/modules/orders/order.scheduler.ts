@@ -43,16 +43,14 @@ const processFoodReadyJob = async (orderId: string) => {
 
   const previousStatus = order.orderStatus;
 
-  if (previousStatus !== "READY") {
-    order.orderStatus = "READY";
-    await order.save();
-    await order.populate("userId", "userName email");
-    await order.populate("assignedStaff", "userName email role isActive");
-    await order.populate("tableId", "tableNumber isActive isOccupied assignedStaff");
-    await createOrderStatusNotifications(order, "READY", previousStatus);
-    notifyOrderReady(order);
-    notifyOrderStatusUpdated(order);
-  }
+  order.orderStatus = "READY";
+  await order.save();
+  await order.populate("userId", "userName email");
+  await order.populate("assignedStaff", "userName email role isActive");
+  await order.populate("tableId", "tableNumber isActive isOccupied assignedStaff");
+  await createOrderStatusNotifications(order, "READY", previousStatus);
+  notifyOrderReady(order);
+  notifyOrderStatusUpdated(order);
 
   await sendFoodReadySmsOnce(order);
 

@@ -120,7 +120,7 @@ const updateAdminProductController = async (req, res) => {
             });
         }
         const product = await menu_schema_js_1.Menu.findByIdAndUpdate(req.params.id, validation.data, {
-            new: true,
+            returnDocument: "after",
             runValidators: true,
         });
         if (!product) {
