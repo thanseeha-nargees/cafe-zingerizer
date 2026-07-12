@@ -3,13 +3,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.notifyOrderReady = exports.initializeOrderReadyWebSocket = void 0;
+exports.broadcastNotification = exports.notifyOrderStatusUpdated = exports.notifyOrderCreated = exports.notifyOrderReady = exports.initializeOrderReadyWebSocket = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const user_schema_js_1 = require("../auth/user.schema.js");
 const ORDER_READY_WS_PATH = "/ws/orders";
 const WS_ACCEPT_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const clientsByUserId = new Map();
+const clientsByRole = new Map();
 let initialized = false;
 const getId = (value) => {
     if (!value)
@@ -57,10 +58,15 @@ const authenticateRequest = async (request) => {
     if (!token || !secret)
         return null;
     const decoded = jsonwebtoken_1.default.verify(token, secret);
-    const user = await user_schema_js_1.User.findById(decoded.userId).select("_id isActive").lean();
+    const user = await user_schema_js_1.User.findById(decoded.userId)
+        .select("_id role isActive")
+        .lean();
     if (!user?.isActive)
         return null;
-    return String(user._id);
+    return {
+        userId: String(user._id),
+        role: user.role,
+    };
 };
 const encodeFrame = (payload, opcode = 0x1) => {
     const data = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
@@ -82,14 +88,21 @@ const encodeFrame = (payload, opcode = 0x1) => {
     header[0] = 0x80 | opcode;
     return Buffer.concat([header, data]);
 };
-const addClient = (userId, socket) => {
+const addClient = (userId, role, socket) => {
     const clients = clientsByUserId.get(userId) ?? new Set();
     clients.add(socket);
     clientsByUserId.set(userId, clients);
+    const roleClients = clientsByRole.get(role) ?? new Set();
+    roleClients.add(socket);
+    clientsByRole.set(role, roleClients);
     const cleanup = () => {
         clients.delete(socket);
         if (clients.size === 0) {
             clientsByUserId.delete(userId);
+        }
+        roleClients.delete(socket);
+        if (roleClients.size === 0) {
+            clientsByRole.delete(role);
         }
     };
     socket.on("close", cleanup);
@@ -122,8 +135,8 @@ const handleUpgrade = async (request, socket) => {
         return;
     }
     try {
-        const userId = await authenticateRequest(request);
-        if (!userId) {
+        const auth = await authenticateRequest(request);
+        if (!auth) {
             rejectSocket(socket, 401, "Unauthorized");
             return;
         }
@@ -139,7 +152,7 @@ const handleUpgrade = async (request, socket) => {
             "",
             "",
         ].join("\r\n"));
-        addClient(userId, socket);
+        addClient(auth.userId, auth.role, socket);
     }
     catch {
         rejectSocket(socket, 401, "Unauthorized");
@@ -175,4 +188,63 @@ const notifyOrderReady = (order) => {
     }
 };
 exports.notifyOrderReady = notifyOrderReady;
+const writePayload = (clients, payload) => {
+    if (!clients || clients.size === 0)
+        return;
+    const frame = encodeFrame(JSON.stringify(payload));
+    for (const client of clients) {
+        if (client.writable) {
+            client.write(frame);
+        }
+    }
+};
+const getAssignedStaffId = (order) => {
+    const assignedStaffId = getId(order.assignedStaff);
+    if (assignedStaffId)
+        return assignedStaffId;
+    if (order.tableId &&
+        typeof order.tableId === "object" &&
+        "assignedStaff" in order.tableId) {
+        return getId(order.tableId.assignedStaff);
+    }
+    return "";
+};
+const notifyOrderEvent = (order, type) => {
+    const assignedStaffId = getAssignedStaffId(order);
+    const payload = {
+        type,
+        orderId: getId(order._id),
+        orderStatus: order.orderStatus,
+        customerName: order.customerName,
+        tableId: getId(order.tableId),
+        assignedStaffId,
+        sentAt: new Date().toISOString(),
+    };
+    writePayload(clientsByRole.get("admin"), payload);
+    if (assignedStaffId) {
+        writePayload(clientsByUserId.get(assignedStaffId), payload);
+    }
+};
+const notifyOrderCreated = (order) => {
+    notifyOrderEvent(order, "ORDER_CREATED");
+};
+exports.notifyOrderCreated = notifyOrderCreated;
+const notifyOrderStatusUpdated = (order) => {
+    notifyOrderEvent(order, "ORDER_STATUS_UPDATED");
+};
+exports.notifyOrderStatusUpdated = notifyOrderStatusUpdated;
+const broadcastNotification = (notification) => {
+    const payload = {
+        type: "NOTIFICATION_CREATED",
+        notification,
+        unreadDelta: notification.isRead ? 0 : 1,
+        sentAt: new Date().toISOString(),
+    };
+    if (notification.userId) {
+        writePayload(clientsByUserId.get(notification.userId), payload);
+        return;
+    }
+    writePayload(clientsByRole.get(notification.role), payload);
+};
+exports.broadcastNotification = broadcastNotification;
 //# sourceMappingURL=orderReady.websocket.js.map

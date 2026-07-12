@@ -1,13 +1,14 @@
 import { Table } from "./table.model.js";
 import { TableSetting, TableStatus } from "./table.types.js";
 import QRCode from "qrcode";
+import mongoose from "mongoose";
 
 const DEFAULT_TABLE_COUNT = 12;
 const DEFAULT_TABLE_COLUMNS = 4;
 
 const getTableQrUrl = (tableId: string) => {
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-  return `${frontendUrl}/menu?table=${tableId}`;
+  return `${frontendUrl}/menu/${tableId}`;
 };
 
 const addQrToTable = async (table: any) => {
@@ -55,6 +56,7 @@ const formatTableSetting = (
   isOccupied: table.isOccupied,
   qrUrl: table.qrUrl,
   qrCode: table.qrCode,
+  assignedStaff: table.assignedStaff,
 });
 
 const getFormattedTables = async (
@@ -101,7 +103,11 @@ const ensureDefaultTables = async (totalTables = DEFAULT_TABLE_COUNT) => {
     .map((tableNumber) => ({ tableNumber }));
 
   if (missingTables.length > 0) {
-    await Table.insertMany(missingTables);
+    const insertedTables = await Table.insertMany(missingTables);
+
+    for (const table of insertedTables) {
+      await addQrToTable(table);
+    }
   }
 };
 
@@ -119,6 +125,29 @@ export const createTableService = async (
 
 export const getAllTablesService = async () => {
   return await getFormattedTables();
+};
+
+export const getTableByIdService = async (tableId: string) => {
+  if (!mongoose.Types.ObjectId.isValid(tableId)) {
+    throw new Error("Table not found");
+  }
+
+  const table = await Table.findById(tableId).populate(
+    "assignedStaff",
+    "userName email role isActive"
+  );
+
+  if (!table) {
+    throw new Error("Table not found");
+  }
+
+  const expectedQrUrl = getTableQrUrl(table._id.toString());
+
+  if (!table.qrCode || table.qrUrl !== expectedQrUrl) {
+    await addQrToTable(table);
+  }
+
+  return formatTableSetting(table);
 };
 
 export const getAvailableTablesService = async () => {
@@ -194,7 +223,7 @@ export const getAllTableQrCodesService = async () => {
   const tables = await Table.find().sort({ tableNumber: 1 });
 
   for (const table of tables) {
-    if (!table.qrCode || !table.qrUrl) {
+    if (!table.qrCode || table.qrUrl !== getTableQrUrl(table._id.toString())) {
       await addQrToTable(table);
     }
   }
@@ -206,5 +235,6 @@ export const getAllTableQrCodesService = async () => {
     qrCode: table.qrCode,
     isActive: table.isActive,
     isOccupied: table.isOccupied,
+    assignedStaff: table.assignedStaff,
   }));
 };

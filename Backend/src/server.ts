@@ -14,6 +14,8 @@ import { ensureDefaultSuperAdmin } from "./modules/auth/admin.seed.js";
 import tableRoutes from "./modules/table/table.routes.js";
 import cartRoutes from "./modules/cart/cart.routes.js";
 import notificationRoutes from "./modules/notifications/notification.routes.js";
+import reviewRoutes from "./modules/reviews/review.routes.js";
+import paymentRoutes from "./modules/payments/payment.routes.js";
 import { initializeOrderReadyWebSocket } from "./modules/notifications/orderReady.websocket.js";
 import cors from "cors"
 
@@ -38,6 +40,8 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/tables", tableRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/payments", paymentRoutes);
 initializeOrderReadyWebSocket(server);
 
 

@@ -3,6 +3,10 @@ import mongoose from "mongoose";
 import { z } from "zod";
 import { hashPassword } from "../../utils/password.js";
 import { User } from "../auth/user.schema.js";
+import {
+  createNotification,
+  createNotificationsForRole,
+} from "../notifications/notification.service.js";
 import { Table } from "../table/table.model.js";
 
 const staffRoles = ["admin", "staff"] as const;
@@ -243,6 +247,41 @@ export const assignTableToStaffController = async (
     table.assignedStaff = staffId ? new mongoose.Types.ObjectId(staffId) : null;
     await table.save();
     await table.populate("assignedStaff", "userName email role isActive");
+
+    const notificationTasks: Promise<unknown>[] = [
+      createNotificationsForRole("admin", {
+        title: staffId ? "Table assignment updated" : "Table unassigned",
+        message: staffId
+          ? `Table ${table.tableNumber} was assigned to staff.`
+          : `Table ${table.tableNumber} is now unassigned.`,
+        type: "STAFF_ASSIGNMENT",
+        link: "/admin/staff",
+        metadata: {
+          tableId: table._id.toString(),
+          tableNumber: table.tableNumber,
+          staffId,
+        },
+      }),
+    ];
+
+    if (staffId) {
+      notificationTasks.push(
+        createNotification({
+          userId: staffId,
+          role: "staff",
+          title: "New table assignment",
+          message: `Table ${table.tableNumber} has been assigned to you.`,
+          type: "STAFF_ASSIGNMENT",
+          link: "/staff/tables",
+          metadata: {
+            tableId: table._id.toString(),
+            tableNumber: table.tableNumber,
+          },
+        })
+      );
+    }
+
+    await Promise.all(notificationTasks);
 
     return res.status(200).json({
       success: true,

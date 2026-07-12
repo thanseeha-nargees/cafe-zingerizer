@@ -1,5 +1,6 @@
 import { Utensils } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
+import NotificationBell from "../../components/NotificationBell";
 import StaffSidebar, { navItems } from "./StaffSidebar";
 
 function StaffLayout() {
@@ -9,7 +10,7 @@ function StaffLayout() {
         <StaffSidebar />
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="flex size-10 items-center justify-center rounded-lg bg-teal-700 text-white">
                   <Utensils size={20} />
@@ -18,6 +19,7 @@ function StaffLayout() {
                   Staff Portal
                 </span>
               </div>
+              <NotificationBell accent="teal" />
             </div>
             <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
               {navItems.map((item) => (
@@ -37,6 +39,9 @@ function StaffLayout() {
                 </NavLink>
               ))}
             </nav>
+          </header>
+          <header className="sticky top-0 z-20 hidden items-center justify-end border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6 lg:flex lg:px-8">
+            <NotificationBell accent="teal" />
           </header>
 
           <main className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">

@@ -1,10 +1,14 @@
 import redisClient from "../../config/redis.js";
-import { notifyOrderReady } from "../notifications/orderReady.websocket.js";
+import {
+  notifyOrderReady,
+  notifyOrderStatusUpdated,
+} from "../notifications/orderReady.websocket.js";
+import { createOrderStatusNotifications } from "../notifications/notification.service.js";
 import { Order } from "./order.model.js";
 import { sendFoodReadySmsOnce } from "./order.sms.js";
 
 const FOOD_READY_QUEUE_KEY = "orders:food-ready:queue";
-const FOOD_READY_DELAY_MS = 10 * 60 * 1000;
+export const PREPARATION_TIME_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 1000;
 
 export const scheduleFoodReadyNotification = async (
@@ -29,7 +33,10 @@ const processFoodReadyJob = async (orderId: string) => {
     return;
   }
 
-  if (["COMPLETED", "CANCELLED"].includes(order.orderStatus)) {
+  if (
+    order.orderStatus !== "PREPARING" ||
+    ["COMPLETED", "CANCELLED"].includes(order.orderStatus)
+  ) {
     await redisClient.zRem(FOOD_READY_QUEUE_KEY, orderId);
     return;
   }
@@ -39,7 +46,12 @@ const processFoodReadyJob = async (orderId: string) => {
   if (previousStatus !== "READY") {
     order.orderStatus = "READY";
     await order.save();
+    await order.populate("userId", "userName email");
+    await order.populate("assignedStaff", "userName email role isActive");
+    await order.populate("tableId", "tableNumber isActive isOccupied assignedStaff");
+    await createOrderStatusNotifications(order, "READY", previousStatus);
     notifyOrderReady(order);
+    notifyOrderStatusUpdated(order);
   }
 
   await sendFoodReadySmsOnce(order);
@@ -70,7 +82,7 @@ const restorePendingFoodReadyJobs = async () => {
   const orders = await Order.find({
     foodReadyAt: { $ne: null },
     foodReadySmsSentAt: null,
-    orderStatus: { $nin: ["COMPLETED", "CANCELLED"] },
+    orderStatus: "PREPARING",
   }).select("_id foodReadyAt");
 
   for (const order of orders) {
@@ -88,4 +100,7 @@ export const startFoodReadyNotificationWorker = async () => {
   setInterval(processDueFoodReadyJobs, POLL_INTERVAL_MS);
 };
 
-export const getFoodReadyAt = () => new Date(Date.now() + FOOD_READY_DELAY_MS);
+export const getEstimatedReadyAt = (from = new Date()) =>
+  new Date(from.getTime() + PREPARATION_TIME_MS);
+
+export const getFoodReadyAt = () => getEstimatedReadyAt();

@@ -5,6 +5,7 @@ import {
   getStaffAssignedTablesController,
   getStaffDashboardController,
   getStaffOrdersController,
+  getStaffProfileController,
   staffLoginController,
   updateStaffOrderStatusController,
 } from "./staff.controller.js";
@@ -15,6 +16,7 @@ router.post("/login", staffLoginController);
 
 router.use(protect, roleMiddleware("staff"));
 router.get("/dashboard", getStaffDashboardController);
+router.get("/profile", getStaffProfileController);
 router.get("/tables", getStaffAssignedTablesController);
 router.get("/orders", getStaffOrdersController);
 router.patch("/orders/:id/status", updateStaffOrderStatusController);

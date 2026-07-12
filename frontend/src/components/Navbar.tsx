@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { api } from "../api/axios";
 import { useAppDispatch } from "../app/hooks";
 import { clearCurrentUser } from "../features/auth/authSlice";
+import NotificationBell from "./NotificationBell";
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   isActive
@@ -45,9 +46,15 @@ const Navbar = () => {
             History
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/reviews" className={navLinkClass}>
+            Reviews
+          </NavLink>
+        </li>
       </ul>
 
       <div className="flex items-center gap-3">
+        <NotificationBell accent="orange" />
         <button
           type="button"
           aria-label="Language"

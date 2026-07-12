@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
   ClipboardList,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/axios";
+import { useOrderEvents } from "../../utils/useOrderEvents";
 import type { StaffOrder, StaffSummary, StaffTable } from "../types";
 import {
   formatCurrency,
@@ -32,6 +33,7 @@ const emptySummary: StaffSummary = {
   assignedTables: 0,
   occupiedTables: 0,
   activeOrders: 0,
+  completedOrders: 0,
   readyOrders: 0,
   servedToday: 0,
 };
@@ -43,7 +45,7 @@ function StaffDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadDashboard = async (silent = false) => {
+  const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) {
       setLoading(true);
     }
@@ -61,7 +63,7 @@ function StaffDashboard() {
         setLoading(false);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadDashboard();
@@ -70,7 +72,13 @@ function StaffDashboard() {
     }, 10000);
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [loadDashboard]);
+
+  const handleOrderEvent = useCallback(() => {
+    void loadDashboard(true);
+  }, [loadDashboard]);
+
+  useOrderEvents(handleOrderEvent);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -103,7 +111,7 @@ function StaffDashboard() {
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <Table2 className="text-teal-700" size={22} />
           <p className="mt-4 text-xs font-black uppercase text-slate-500">
-            Assigned Tables
+            Today's Tables
           </p>
           <p className="mt-2 text-3xl font-black text-slate-950">
             {loading ? "..." : summary.assignedTables}
@@ -139,10 +147,10 @@ function StaffDashboard() {
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
           <CheckCircle2 className="text-emerald-700" size={22} />
           <p className="mt-4 text-xs font-black uppercase text-emerald-700">
-            Served Today
+            Completed Orders
           </p>
           <p className="mt-2 text-3xl font-black text-emerald-950">
-            {loading ? "..." : summary.servedToday}
+            {loading ? "..." : summary.completedOrders}
           </p>
         </div>
       </section>
@@ -225,7 +233,7 @@ function StaffDashboard() {
                 >
                   <div className="min-w-0">
                     <p className="font-extrabold text-slate-950">
-                      {getOrderLabel(order._id)} · {getTableLabel(order)}
+                      {getOrderLabel(order._id)} - {getTableLabel(order)}
                     </p>
                     <p className="mt-1 truncate text-sm font-semibold text-slate-500">
                       {order.items.map(getItemName).join(", ")}

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAllTableQrCodesController = exports.generateAllTableQrCodesController = exports.updateTableStatusController = exports.setupTableSettingsController = exports.getTableSettingsController = exports.getAvailableTablesController = exports.getAllTablesController = exports.createTableController = void 0;
+exports.getAllTableQrCodesController = exports.generateAllTableQrCodesController = exports.updateTableStatusController = exports.setupTableSettingsController = exports.getTableSettingsController = exports.getTableByIdController = exports.getAvailableTablesController = exports.getAllTablesController = exports.createTableController = void 0;
 const table_service_js_1 = require("./table.service.js");
 const table_validation_js_1 = require("./table.validation.js");
 const createTableController = async (req, res) => {
@@ -59,6 +59,29 @@ const getAvailableTablesController = async (req, res) => {
     }
 };
 exports.getAvailableTablesController = getAvailableTablesController;
+const getTableByIdController = async (req, res) => {
+    try {
+        const table = await (0, table_service_js_1.getTableByIdService)(req.params.tableId);
+        if (!table.isActive) {
+            return res.status(403).json({
+                success: false,
+                message: "This table is not active",
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            data: table,
+        });
+    }
+    catch (error) {
+        const statusCode = error.message === "Table not found" ? 404 : 500;
+        return res.status(statusCode).json({
+            success: false,
+            message: error.message || "Something went wrong",
+        });
+    }
+};
+exports.getTableByIdController = getTableByIdController;
 const getTableSettingsController = async (req, res) => {
     try {
         const selectedTableId = typeof req.query.selectedTableId === "string"

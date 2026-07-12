@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateStaffOrderStatusController = exports.getStaffOrdersController = exports.getStaffAssignedTablesController = exports.getStaffDashboardController = exports.staffLoginController = void 0;
+exports.updateStaffOrderStatusController = exports.getStaffOrdersController = exports.getStaffAssignedTablesController = exports.getStaffDashboardController = exports.staffLoginController = exports.getStaffProfileController = void 0;
 const jwt_js_1 = require("../../utils/jwt.js");
 const password_js_1 = require("../../utils/password.js");
 const user_schema_js_1 = require("../auth/user.schema.js");
@@ -25,10 +25,12 @@ const refreshCookieOptions = {
     path: "/",
 };
 const STAFF_ALLOWED_STATUSES = [
+    "PENDING",
     "CONFIRMED",
     "PREPARING",
     "READY",
     "COMPLETED",
+    "CANCELLED",
 ];
 const ACTIVE_ORDER_STATUSES = [
     "PENDING",
@@ -38,7 +40,6 @@ const ACTIVE_ORDER_STATUSES = [
 ];
 const HISTORY_ORDER_STATUSES = [
     "COMPLETED",
-    "CANCELLED",
 ];
 const getApiMessage = (error) => error instanceof Error ? error.message : "Something went wrong";
 const isStaffAllowedStatus = (status) => STAFF_ALLOWED_STATUSES.includes(status);
@@ -51,12 +52,49 @@ const formatStaffTable = (table) => ({
     qrUrl: table.qrUrl,
     qrCode: table.qrCode,
 });
-const getAssignedTableIds = async (staffId) => table_model_js_1.Table.find({ assignedStaff: staffId }).distinct("_id");
+const getAssignedTableIds = async (staffId) => (await table_model_js_1.Table.find({ assignedStaff: staffId }).distinct("_id")).map((tableId) => String(tableId));
+const getStaffOrderOwnershipFilter = (staffId, tableIds) => ({
+    $or: [
+        { assignedStaff: staffId },
+        {
+            assignedStaff: null,
+            tableId: { $in: tableIds },
+        },
+    ],
+});
 const getStartOfToday = () => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
     return date;
 };
+const getStaffProfileController = async (req, res) => {
+    try {
+        const staff = await user_schema_js_1.User.findOne({
+            _id: String(req.user?._id),
+            role: "staff",
+            isActive: true,
+        })
+            .select("userName email phoneNumber profileImage role isActive createdAt updatedAt")
+            .lean();
+        if (!staff) {
+            return res.status(404).json({
+                success: false,
+                message: "Staff profile not found",
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            staff,
+        });
+    }
+    catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: getApiMessage(error),
+        });
+    }
+};
+exports.getStaffProfileController = getStaffProfileController;
 const staffLoginController = async (req, res) => {
     try {
         const validation = user_validation_js_1.loginSchema.safeParse(req.body);
@@ -116,29 +154,35 @@ const getStaffDashboardController = async (req, res) => {
         const tables = await table_model_js_1.Table.find({ assignedStaff: staffId })
             .sort({ tableNumber: 1 })
             .lean();
-        const tableIds = tables.map((table) => table._id);
-        const [activeOrders, readyOrders, servedToday, recentOrders] = await Promise.all([
-            order_model_js_1.Order.countDocuments({
-                tableId: { $in: tableIds },
-                orderStatus: { $in: ACTIVE_ORDER_STATUSES },
-            }),
-            order_model_js_1.Order.countDocuments({
-                tableId: { $in: tableIds },
-                orderStatus: "READY",
-            }),
-            order_model_js_1.Order.countDocuments({
-                tableId: { $in: tableIds },
-                orderStatus: "COMPLETED",
-                updatedAt: { $gte: getStartOfToday() },
-            }),
-            order_model_js_1.Order.find({
-                tableId: { $in: tableIds },
-                orderStatus: { $in: ACTIVE_ORDER_STATUSES },
-            })
+        const tableIds = tables.map((table) => String(table._id));
+        const ownershipFilter = getStaffOrderOwnershipFilter(staffId, tableIds);
+        const activeOrdersFilter = {
+            ...ownershipFilter,
+            orderStatus: { $in: ACTIVE_ORDER_STATUSES },
+        };
+        const completedOrdersFilter = {
+            ...ownershipFilter,
+            orderStatus: "COMPLETED",
+        };
+        const readyOrdersFilter = {
+            ...ownershipFilter,
+            orderStatus: "READY",
+        };
+        const servedTodayFilter = {
+            ...completedOrdersFilter,
+            updatedAt: { $gte: getStartOfToday() },
+        };
+        const [activeOrders, completedOrders, readyOrders, servedToday, recentOrders] = await Promise.all([
+            order_model_js_1.Order.countDocuments(activeOrdersFilter),
+            order_model_js_1.Order.countDocuments(completedOrdersFilter),
+            order_model_js_1.Order.countDocuments(readyOrdersFilter),
+            order_model_js_1.Order.countDocuments(servedTodayFilter),
+            order_model_js_1.Order.find(activeOrdersFilter)
                 .sort({ createdAt: -1 })
                 .limit(5)
                 .populate("items.menuItemId", "name category image price")
                 .populate("tableId", "tableNumber isActive isOccupied")
+                .populate("assignedStaff", "userName email role isActive")
                 .populate("userId", "userName email")
                 .lean(),
         ]);
@@ -148,6 +192,7 @@ const getStaffDashboardController = async (req, res) => {
                 assignedTables: tables.length,
                 occupiedTables: tables.filter((table) => table.isOccupied).length,
                 activeOrders,
+                completedOrders,
                 readyOrders,
                 servedToday,
             },
@@ -187,7 +232,7 @@ const getStaffOrdersController = async (req, res) => {
         const tableIds = await getAssignedTableIds(staffId);
         const scope = typeof req.query.scope === "string" ? req.query.scope : "active";
         const filters = {
-            tableId: { $in: tableIds },
+            ...getStaffOrderOwnershipFilter(staffId, tableIds),
         };
         if (scope === "active") {
             filters.orderStatus = { $in: ACTIVE_ORDER_STATUSES };
@@ -221,6 +266,7 @@ const getStaffOrdersController = async (req, res) => {
             .sort({ createdAt: -1 })
             .populate("items.menuItemId", "name category image price")
             .populate("tableId", "tableNumber isActive isOccupied")
+            .populate("assignedStaff", "userName email role isActive")
             .populate("userId", "userName email")
             .lean();
         return res.status(200).json({
@@ -255,7 +301,7 @@ const updateStaffOrderStatusController = async (req, res) => {
             });
         }
         const order = await order_model_js_1.Order.findById(req.params.id)
-            .select("tableId orderStatus")
+            .select("tableId assignedStaff orderStatus")
             .lean();
         if (!order) {
             return res.status(404).json({
@@ -281,11 +327,17 @@ const updateStaffOrderStatusController = async (req, res) => {
                 message: "This order is not assigned to your tables",
             });
         }
-        const ownsTable = await table_model_js_1.Table.exists({
-            _id: order.tableId,
-            assignedStaff: String(req.user?._id),
-        });
-        if (!ownsTable) {
+        const staffId = String(req.user?._id);
+        const assignedStaffId = order.assignedStaff
+            ? String(order.assignedStaff)
+            : "";
+        const ownsAssignedOrder = assignedStaffId === staffId;
+        const ownsTable = !assignedStaffId &&
+            (await table_model_js_1.Table.exists({
+                _id: order.tableId,
+                assignedStaff: staffId,
+            }));
+        if (!ownsAssignedOrder && !ownsTable) {
             return res.status(403).json({
                 success: false,
                 message: "This order is not assigned to your tables",

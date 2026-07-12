@@ -6,6 +6,7 @@ import {
   LogOut,
   Table2,
   Utensils,
+  UserRound,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -15,9 +16,10 @@ import { clearCurrentUser } from "../../features/auth/authSlice";
 
 const navItems = [
   { label: "Dashboard", href: "/staff/dashboard", icon: LayoutDashboard },
-  { label: "Active Orders", href: "/staff/orders/active", icon: ClipboardList },
+  { label: "My Orders", href: "/staff/orders/active", icon: ClipboardList },
   { label: "Order History", href: "/staff/orders/history", icon: History },
   { label: "My Tables", href: "/staff/tables", icon: Table2 },
+  { label: "Profile", href: "/staff/profile", icon: UserRound },
 ];
 
 function StaffSidebar() {

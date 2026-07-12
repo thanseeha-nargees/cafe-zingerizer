@@ -35,7 +35,15 @@ export const getAdminOrdersController = async (req: Request, res: Response) => {
     const orders = await Order.find(filters)
       .sort({ createdAt: -1 })
       .populate("items.menuItemId", "name category image price")
-      .populate("tableId", "tableNumber isActive isOccupied")
+      .populate({
+        path: "tableId",
+        select: "tableNumber isActive isOccupied assignedStaff",
+        populate: {
+          path: "assignedStaff",
+          select: "userName email role isActive",
+        },
+      })
+      .populate("assignedStaff", "userName email role isActive")
       .populate("userId", "userName email")
       .lean();
 

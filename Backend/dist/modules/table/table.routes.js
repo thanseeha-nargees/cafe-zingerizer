@@ -9,6 +9,7 @@ router.get("/settings", table_controller_js_1.getTableSettingsController);
 router.post("/settings/setup", table_controller_js_1.setupTableSettingsController);
 router.get("/qrcodes", table_controller_js_1.getAllTableQrCodesController);
 router.post("/qrcodes/generate", table_controller_js_1.generateAllTableQrCodesController);
+router.get("/:tableId", table_controller_js_1.getTableByIdController);
 router.patch("/:tableId/status", table_controller_js_1.updateTableStatusController);
 router.get("/", table_controller_js_1.getAllTablesController);
 exports.default = router;

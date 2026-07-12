@@ -3,13 +3,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFoodReadyAt = exports.startFoodReadyNotificationWorker = exports.clearScheduledFoodReadyNotification = exports.scheduleFoodReadyNotification = void 0;
+exports.getFoodReadyAt = exports.getEstimatedReadyAt = exports.startFoodReadyNotificationWorker = exports.clearScheduledFoodReadyNotification = exports.scheduleFoodReadyNotification = exports.PREPARATION_TIME_MS = void 0;
 const redis_js_1 = __importDefault(require("../../config/redis.js"));
 const orderReady_websocket_js_1 = require("../notifications/orderReady.websocket.js");
+const notification_service_js_1 = require("../notifications/notification.service.js");
 const order_model_js_1 = require("./order.model.js");
 const order_sms_js_1 = require("./order.sms.js");
 const FOOD_READY_QUEUE_KEY = "orders:food-ready:queue";
-const FOOD_READY_DELAY_MS = 10 * 60 * 1000;
+exports.PREPARATION_TIME_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 1000;
 const scheduleFoodReadyNotification = async (orderId, readyAt) => {
     await redis_js_1.default.zAdd(FOOD_READY_QUEUE_KEY, {
@@ -36,7 +37,12 @@ const processFoodReadyJob = async (orderId) => {
     if (previousStatus !== "READY") {
         order.orderStatus = "READY";
         await order.save();
+        await order.populate("userId", "userName email");
+        await order.populate("assignedStaff", "userName email role isActive");
+        await order.populate("tableId", "tableNumber isActive isOccupied assignedStaff");
+        await (0, notification_service_js_1.createOrderStatusNotifications)(order, "READY", previousStatus);
         (0, orderReady_websocket_js_1.notifyOrderReady)(order);
+        (0, orderReady_websocket_js_1.notifyOrderStatusUpdated)(order);
     }
     await (0, order_sms_js_1.sendFoodReadySmsOnce)(order);
     await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
@@ -69,6 +75,8 @@ const startFoodReadyNotificationWorker = async () => {
     setInterval(processDueFoodReadyJobs, POLL_INTERVAL_MS);
 };
 exports.startFoodReadyNotificationWorker = startFoodReadyNotificationWorker;
-const getFoodReadyAt = () => new Date(Date.now() + FOOD_READY_DELAY_MS);
+const getEstimatedReadyAt = (from = new Date()) => new Date(from.getTime() + exports.PREPARATION_TIME_MS);
+exports.getEstimatedReadyAt = getEstimatedReadyAt;
+const getFoodReadyAt = () => (0, exports.getEstimatedReadyAt)();
 exports.getFoodReadyAt = getFoodReadyAt;
 //# sourceMappingURL=order.scheduler.js.map

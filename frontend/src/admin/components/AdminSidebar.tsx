@@ -4,7 +4,9 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  QrCode,
   ShoppingBag,
+  Star,
   UsersRound,
   Utensils,
 } from "lucide-react";
@@ -18,6 +20,8 @@ const navItems = [
   { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { label: "Products", href: "/admin/products", icon: Boxes },
   { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
+  { label: "Reviews", href: "/admin/reviews", icon: Star },
+  { label: "Tables", href: "/admin/tables", icon: QrCode },
   { label: "Users", href: "/admin/users", icon: UsersRound },
   { label: "Staff", href: "/admin/staff", icon: BriefcaseBusiness },
 ];

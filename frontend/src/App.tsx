@@ -6,7 +6,9 @@ import Login from "./features/auth/Login";
 import Home from "./Home";
 import Menu from "./pages/menu";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import QrTableSessionRoute from "./routes/QrTableSessionRoute";
 import History from "./pages/History";
+import MyReviews from "./pages/MyReviews";
 import Checkout from "./pages/Checkout";
 import OrderReadySocket from "./components/OrderReadySocket";
 
@@ -19,6 +21,8 @@ import StaffPage from "./admin/pages/Staff";
 import UsersPage from "./admin/pages/Users";
 import ProductsPage from "./admin/pages/Products";
 import OrdersPage from "./admin/pages/Orders";
+import TablesPage from "./admin/pages/Tables";
+import ReviewsPage from "./admin/pages/Reviews";
 import StaffProtectedRoute from "./staff/routes/StaffProtectedRoute";
 import StaffLayout from "./staff/components/StaffLayout";
 import StaffLogin from "./staff/pages/Login";
@@ -26,6 +30,7 @@ import StaffDashboard from "./staff/pages/Dashboard";
 import AssignedTables from "./staff/pages/AssignedTables";
 import ActiveOrders from "./staff/pages/ActiveOrders";
 import StaffOrderHistory from "./staff/pages/OrderHistory";
+import StaffProfile from "./staff/pages/Profile";
 
 
 import "./assets/i18n";
@@ -45,8 +50,23 @@ function App() {
       <Routes>
         <Route path="/" element={protectedPage(<Home />)} />
         <Route path="/menu" element={protectedPage(<Menu />)} />
+        <Route
+          path="/menu/:tableId"
+          element={
+            <QrTableSessionRoute>{protectedPage(<Menu />)}</QrTableSessionRoute>
+          }
+        />
         <Route path="/checkout" element={protectedPage(<Checkout />)} />
+        <Route
+          path="/checkout/:tableId"
+          element={
+            <QrTableSessionRoute>
+              {protectedPage(<Checkout />)}
+            </QrTableSessionRoute>
+          }
+        />
         <Route path="/history" element={protectedPage(<History />)} />
+        <Route path="/reviews" element={protectedPage(<MyReviews />)} />
         <Route path="/otp-verify" element={<VerifyOtp />} />
         <Route path="/login" element={<Login />} />
         <Route path="/admin/login" element={<AdminLogin />} />
@@ -68,6 +88,8 @@ function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="orders" element={<OrdersPage />} />
+          <Route path="tables" element={<TablesPage />} />
+          <Route path="reviews" element={<ReviewsPage />} />
         </Route>
 
         <Route
@@ -87,6 +109,7 @@ function App() {
           />
           <Route path="orders/active" element={<ActiveOrders />} />
           <Route path="orders/history" element={<StaffOrderHistory />} />
+          <Route path="profile" element={<StaffProfile />} />
         </Route>
       </Routes>
     </>

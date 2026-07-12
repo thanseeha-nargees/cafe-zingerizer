@@ -10,10 +10,12 @@ export const staffStatusLabels: Record<StaffOrderStatus, string> = {
 };
 
 export const staffActionStatuses: StaffOrderStatus[] = [
+  "PENDING",
   "CONFIRMED",
   "PREPARING",
   "READY",
   "COMPLETED",
+  "CANCELLED",
 ];
 
 export const terminalStatuses: StaffOrderStatus[] = ["COMPLETED", "CANCELLED"];

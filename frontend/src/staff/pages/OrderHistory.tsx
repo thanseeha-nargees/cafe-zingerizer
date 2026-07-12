@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, RefreshCw, Search, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Loader2, RefreshCw, Search } from "lucide-react";
 import { api } from "../../api/axios";
+import { useOrderEvents } from "../../utils/useOrderEvents";
 import type { StaffOrder, StaffOrderStatus } from "../types";
 import {
   formatCurrency,
@@ -26,7 +27,7 @@ function OrderHistory() {
     "all"
   );
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     setLoading(true);
     setError("");
 
@@ -40,11 +41,17 @@ function OrderHistory() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadOrders();
-  }, []);
+  }, [loadOrders]);
+
+  const handleOrderEvent = useCallback(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  useOrderEvents(handleOrderEvent);
 
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -68,10 +75,6 @@ function OrderHistory() {
   const servedOrders = orders.filter(
     (order) => order.orderStatus === "COMPLETED"
   ).length;
-  const cancelledOrders = orders.filter(
-    (order) => order.orderStatus === "CANCELLED"
-  ).length;
-
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -93,7 +96,7 @@ function OrderHistory() {
         </button>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-black uppercase text-slate-500">Total</p>
           <p className="mt-2 text-3xl font-black text-slate-950">
@@ -103,19 +106,10 @@ function OrderHistory() {
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
           <CheckCircle2 className="text-emerald-700" size={22} />
           <p className="mt-4 text-xs font-black uppercase text-emerald-700">
-            Served
+            Completed
           </p>
           <p className="mt-2 text-3xl font-black text-emerald-950">
             {loading ? "..." : servedOrders}
-          </p>
-        </div>
-        <div className="rounded-lg border border-red-100 bg-red-50 p-5 shadow-sm">
-          <XCircle className="text-red-700" size={22} />
-          <p className="mt-4 text-xs font-black uppercase text-red-700">
-            Cancelled
-          </p>
-          <p className="mt-2 text-3xl font-black text-red-950">
-            {loading ? "..." : cancelledOrders}
           </p>
         </div>
       </section>
@@ -141,7 +135,7 @@ function OrderHistory() {
             className="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-extrabold text-slate-800 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
           >
             <option value="all">All statuses</option>
-            {(["COMPLETED", "CANCELLED"] as StaffOrderStatus[]).map(
+            {(["COMPLETED"] as StaffOrderStatus[]).map(
               (status) => (
                 <option key={status} value={status}>
                   {staffStatusLabels[status]}
@@ -241,7 +235,12 @@ function OrderHistory() {
                             {itemCount} item{itemCount === 1 ? "" : "s"}
                           </p>
                           <p className="mt-1 line-clamp-2 text-xs font-semibold text-slate-500">
-                            {order.items.map(getItemName).join(", ")}
+                            {order.items
+                              .map(
+                                (item) =>
+                                  `${item.quantity || 0}x ${getItemName(item)}`
+                              )
+                              .join(", ")}
                           </p>
                         </div>
                       </td>

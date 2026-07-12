@@ -5,6 +5,7 @@ import {
   getAvailableTablesService,
   generateAllTableQrCodesService,
   getAllTableQrCodesService,
+  getTableByIdService,
   getTableSettingsService,
   setupTableSettingsService,
   updateTableStatusService,
@@ -78,6 +79,34 @@ export const getAvailableTablesController = async (
     });
   } catch (error: any) {
     return res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong",
+    });
+  }
+};
+
+export const getTableByIdController = async (
+  req: Request<{ tableId: string }>,
+  res: Response
+) => {
+  try {
+    const table = await getTableByIdService(req.params.tableId);
+
+    if (!table.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "This table is not active",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: table,
+    });
+  } catch (error: any) {
+    const statusCode = error.message === "Table not found" ? 404 : 500;
+
+    return res.status(statusCode).json({
       success: false,
       message: error.message || "Something went wrong",
     });

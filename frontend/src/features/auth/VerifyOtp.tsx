@@ -3,6 +3,7 @@ import { api } from "../../api/axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppDispatch } from "../../app/hooks";
 import { setCurrentUser } from "./authSlice";
+import { getQrTableId } from "../../utils/qrTableSession";
 
 function VerifyOtp() {
   const location = useLocation();
@@ -58,7 +59,8 @@ function VerifyOtp() {
     try {
       const response = await api.post("/auth/verify-otp", { email, otp });
       dispatch(setCurrentUser(response.data.user));
-      navigate("/", { replace: true });
+      const qrTableId = getQrTableId();
+      navigate(qrTableId ? `/menu/${qrTableId}` : "/", { replace: true });
     } catch (requestError: unknown) {
       setError(getApiMessage(requestError, "OTP verification failed"));
     } finally {

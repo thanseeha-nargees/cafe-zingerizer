@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateOrderStatusWithSideEffects = exports.isOrderStatus = exports.isValidObjectId = exports.OrderStatusUpdateError = exports.ORDER_STATUSES = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const orderReady_websocket_js_1 = require("../notifications/orderReady.websocket.js");
+const notification_service_js_1 = require("../notifications/notification.service.js");
 const table_model_js_1 = require("../table/table.model.js");
 const order_model_js_1 = require("./order.model.js");
 const order_scheduler_js_1 = require("./order.scheduler.js");
@@ -38,7 +39,15 @@ const updateOrderStatusWithSideEffects = async (orderId, nextStatus) => {
     const previousStatus = existingOrder.orderStatus;
     const order = await order_model_js_1.Order.findByIdAndUpdate(orderId, { $set: { orderStatus: nextStatus } }, { new: true, runValidators: true })
         .populate("items.menuItemId", "name category image price")
-        .populate("tableId", "tableNumber isActive isOccupied assignedStaff")
+        .populate({
+        path: "tableId",
+        select: "tableNumber isActive isOccupied assignedStaff",
+        populate: {
+            path: "assignedStaff",
+            select: "userName email role isActive",
+        },
+    })
+        .populate("assignedStaff", "userName email role isActive")
         .populate("userId", "userName email");
     if (!order) {
         throw new OrderStatusUpdateError("Order not found", 404);
@@ -50,7 +59,14 @@ const updateOrderStatusWithSideEffects = async (orderId, nextStatus) => {
             ? order.tableId._id
             : order.tableId;
         await table_model_js_1.Table.findByIdAndUpdate(tableId, { isOccupied: false });
-        await order.populate("tableId", "tableNumber isActive isOccupied assignedStaff");
+        await order.populate({
+            path: "tableId",
+            select: "tableNumber isActive isOccupied assignedStaff",
+            populate: {
+                path: "assignedStaff",
+                select: "userName email role isActive",
+            },
+        });
     }
     let foodReadySms = null;
     if (nextStatus === "READY" && previousStatus !== "READY") {
@@ -72,6 +88,8 @@ const updateOrderStatusWithSideEffects = async (orderId, nextStatus) => {
             }));
         }
     }
+    await (0, notification_service_js_1.createOrderStatusNotifications)(order, nextStatus, previousStatus);
+    (0, orderReady_websocket_js_1.notifyOrderStatusUpdated)(order);
     return { order, foodReadySms };
 };
 exports.updateOrderStatusWithSideEffects = updateOrderStatusWithSideEffects;

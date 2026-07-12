@@ -5,6 +5,7 @@ import {
   getAllTablesController,
   getAllTableQrCodesController,
   getAvailableTablesController,
+  getTableByIdController,
   getTableSettingsController,
   setupTableSettingsController,
   updateTableStatusController,
@@ -19,6 +20,7 @@ router.get("/settings", getTableSettingsController);
 router.post("/settings/setup", setupTableSettingsController);
 router.get("/qrcodes", getAllTableQrCodesController);
 router.post("/qrcodes/generate", generateAllTableQrCodesController);
+router.get("/:tableId", getTableByIdController);
 router.patch("/:tableId/status", updateTableStatusController);
 
 router.get("/", getAllTablesController);

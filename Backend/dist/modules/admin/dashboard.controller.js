@@ -106,9 +106,11 @@ const getAdminDashboardController = async (req, res) => {
                 },
             ]),
             order_model_js_1.Order.find()
-                .sort({ updatedAt: -1, createdAt: -1 })
+                .sort({ createdAt: -1 })
                 .limit(5)
-                .select("customerName totalAmount orderStatus paymentStatus createdAt updatedAt items")
+                .select("customerName totalAmount orderStatus paymentStatus paymentMethod createdAt updatedAt items tableId tableNumber assignedStaff")
+                .populate("tableId", "tableNumber assignedStaff")
+                .populate("assignedStaff", "userName email role isActive")
                 .lean(),
         ]);
         return res.status(200).json({

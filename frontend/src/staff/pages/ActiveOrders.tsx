@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChefHat,
@@ -8,8 +8,10 @@ import {
   Search,
   Send,
   Soup,
+  XCircle,
 } from "lucide-react";
 import { api } from "../../api/axios";
+import { useOrderEvents } from "../../utils/useOrderEvents";
 import type {
   FoodReadySmsResponse,
   StaffOrder,
@@ -44,7 +46,7 @@ const actionIcon: Record<StaffOrderStatus, typeof CheckCircle2> = {
   PREPARING: ChefHat,
   READY: Send,
   COMPLETED: Soup,
-  CANCELLED: Clock3,
+  CANCELLED: XCircle,
 };
 
 const getOrderUpdateNotice = (
@@ -64,6 +66,39 @@ const getOrderUpdateNotice = (
   return `${orderLabel} updated.`;
 };
 
+const formatCountdown = (remainingMs: number) => {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+    2,
+    "0"
+  )}`;
+};
+
+const getReadyLabel = (order: StaffOrder) =>
+  order.orderType === "Takeaway" ? "Ready for Pickup" : "Ready to Serve";
+
+const getPreparationCountdown = (order: StaffOrder, now: number) => {
+  if (order.orderStatus !== "PREPARING" || !order.estimatedReadyAt) {
+    return null;
+  }
+
+  const estimatedReadyAt = new Date(order.estimatedReadyAt).getTime();
+
+  if (Number.isNaN(estimatedReadyAt)) {
+    return null;
+  }
+
+  const remainingMs = Math.max(estimatedReadyAt - now, 0);
+
+  return {
+    isReady: remainingMs <= 0,
+    remainingText: formatCountdown(remainingMs),
+  };
+};
+
 function ActiveOrders() {
   const [orders, setOrders] = useState<StaffOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,11 +106,12 @@ function ActiveOrders() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [now, setNow] = useState(() => Date.now());
   const [statusFilter, setStatusFilter] = useState<StaffOrderStatus | "all">(
     "all"
   );
 
-  const loadOrders = async (silent = false) => {
+  const loadOrders = useCallback(async (silent = false) => {
     if (!silent) {
       setLoading(true);
     }
@@ -93,7 +129,7 @@ function ActiveOrders() {
         setLoading(false);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadOrders();
@@ -102,7 +138,21 @@ function ActiveOrders() {
     }, 5000);
 
     return () => window.clearInterval(interval);
+  }, [loadOrders]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
   }, []);
+
+  const handleOrderEvent = useCallback(() => {
+    void loadOrders(true);
+  }, [loadOrders]);
+
+  useOrderEvents(handleOrderEvent);
 
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -180,7 +230,7 @@ function ActiveOrders() {
             Assigned Queue
           </p>
           <h1 className="mt-2 text-3xl font-extrabold text-slate-950 sm:text-4xl">
-            Active Orders
+            My Orders
           </h1>
         </div>
         <button
@@ -237,13 +287,11 @@ function ActiveOrders() {
             className="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-extrabold text-slate-800 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
           >
             <option value="all">All statuses</option>
-            {(["PENDING", ...staffActionStatuses] as StaffOrderStatus[]).map(
-              (status) => (
-                <option key={status} value={status}>
-                  {staffStatusLabels[status]}
-                </option>
-              )
-            )}
+            {staffActionStatuses.map((status) => (
+              <option key={status} value={status}>
+                {staffStatusLabels[status]}
+              </option>
+            ))}
           </select>
         </div>
       </section>
@@ -316,6 +364,12 @@ function ActiveOrders() {
                     0
                   );
                   const statusBusy = savingId === order._id;
+                  const preparationCountdown = getPreparationCountdown(
+                    order,
+                    now
+                  );
+                  const displayStatus: StaffOrderStatus =
+                    preparationCountdown?.isReady ? "READY" : order.orderStatus;
 
                   return (
                     <tr key={order._id} className="align-middle">
@@ -348,7 +402,12 @@ function ActiveOrders() {
                             {itemCount} item{itemCount === 1 ? "" : "s"}
                           </p>
                           <p className="mt-1 line-clamp-2 text-xs font-semibold text-slate-500">
-                            {order.items.map(getItemName).join(", ")}
+                            {order.items
+                              .map(
+                                (item) =>
+                                  `${item.quantity || 0}x ${getItemName(item)}`
+                              )
+                              .join(", ")}
                           </p>
                         </div>
                       </td>
@@ -359,11 +418,26 @@ function ActiveOrders() {
                         <span
                           className={[
                             "inline-flex rounded-full px-3 py-1 text-xs font-black uppercase ring-1",
-                            statusClass[order.orderStatus],
+                            statusClass[displayStatus],
                           ].join(" ")}
                         >
-                          {staffStatusLabels[order.orderStatus]}
+                          {staffStatusLabels[displayStatus]}
                         </span>
+                        {preparationCountdown ? (
+                          <div
+                            className={[
+                              "mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ring-1",
+                              preparationCountdown.isReady
+                                ? "bg-violet-50 text-violet-700 ring-violet-200"
+                                : "bg-orange-50 text-orange-700 ring-orange-200",
+                            ].join(" ")}
+                          >
+                            <Clock3 size={13} />
+                            {preparationCountdown.isReady
+                              ? getReadyLabel(order)
+                              : preparationCountdown.remainingText}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex min-w-96 flex-wrap justify-end gap-2">

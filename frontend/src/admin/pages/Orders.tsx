@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Clock3,
@@ -9,6 +9,7 @@ import {
   Utensils,
 } from "lucide-react";
 import { api } from "../../api/axios";
+import { useOrderEvents } from "../../utils/useOrderEvents";
 
 type OrderStatus =
   | "PENDING"
@@ -31,6 +32,12 @@ type OrderItem = {
   price?: number;
 };
 
+type AssignedStaff = {
+  _id: string;
+  userName?: string;
+  email?: string;
+};
+
 type AdminOrder = {
   _id: string;
   customerName: string;
@@ -41,13 +48,22 @@ type AdminOrder = {
     | {
         _id: string;
         tableNumber?: number;
+        assignedStaff?: AssignedStaff | null;
       }
     | null;
+  tableNumber?: number | null;
+  assignedStaff?: AssignedStaff | string | null;
   items: OrderItem[];
   totalAmount: number;
   orderStatus: OrderStatus;
   paymentStatus: "PENDING" | "PAID";
+  paymentMethod?: string;
+  paymentId?: string;
+  razorpayOrderId?: string;
   createdAt: string;
+  confirmedAt?: string | null;
+  preparingStartedAt?: string | null;
+  estimatedReadyAt?: string | null;
 };
 
 type FoodReadySmsResponse =
@@ -84,6 +100,11 @@ const statusClass: Record<OrderStatus, string> = {
   READY: "bg-indigo-50 text-indigo-700 ring-indigo-200",
   COMPLETED: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   CANCELLED: "bg-red-50 text-red-700 ring-red-200",
+};
+
+const paymentStatusClass: Record<AdminOrder["paymentStatus"], string> = {
+  PENDING: "bg-amber-50 text-amber-700 ring-amber-200",
+  PAID: "bg-emerald-50 text-emerald-700 ring-emerald-200",
 };
 
 const terminalStatuses: OrderStatus[] = ["COMPLETED", "CANCELLED"];
@@ -134,7 +155,27 @@ const getTableLabel = (order: AdminOrder) => {
     return `Table ${order.tableId.tableNumber}`;
   }
 
+  if (order.tableNumber) {
+    return `Table ${order.tableNumber}`;
+  }
+
   return "Dining";
+};
+
+const getAssignedStaffLabel = (order: AdminOrder) => {
+  if (typeof order.assignedStaff === "object" && order.assignedStaff?.userName) {
+    return order.assignedStaff.userName;
+  }
+
+  if (
+    typeof order.tableId === "object" &&
+    typeof order.tableId?.assignedStaff === "object" &&
+    order.tableId.assignedStaff?.userName
+  ) {
+    return order.tableId.assignedStaff.userName;
+  }
+
+  return "Unassigned";
 };
 
 const getOrderLabel = (orderId: string) =>
@@ -157,6 +198,39 @@ const getOrderUpdateNotice = (
   return `${orderLabel} updated.`;
 };
 
+const formatCountdown = (remainingMs: number) => {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+    2,
+    "0"
+  )}`;
+};
+
+const getReadyLabel = (order: AdminOrder) =>
+  order.orderType === "Takeaway" ? "Ready for Pickup" : "Ready to Serve";
+
+const getPreparationCountdown = (order: AdminOrder, now: number) => {
+  if (order.orderStatus !== "PREPARING" || !order.estimatedReadyAt) {
+    return null;
+  }
+
+  const estimatedReadyAt = new Date(order.estimatedReadyAt).getTime();
+
+  if (Number.isNaN(estimatedReadyAt)) {
+    return null;
+  }
+
+  const remainingMs = Math.max(estimatedReadyAt - now, 0);
+
+  return {
+    isReady: remainingMs <= 0,
+    remainingText: formatCountdown(remainingMs),
+  };
+};
+
 function OrdersPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,9 +238,10 @@ function OrdersPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [now, setNow] = useState(() => Date.now());
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     setLoading(true);
     setError("");
 
@@ -178,11 +253,25 @@ function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadOrders();
+    void loadOrders();
+  }, [loadOrders]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
   }, []);
+
+  const handleOrderEvent = useCallback(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  useOrderEvents(handleOrderEvent);
 
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -196,6 +285,8 @@ function OrdersPage() {
         order.customerName.toLowerCase().includes(term) ||
         order.customerPhone.toLowerCase().includes(term) ||
         order._id.toLowerCase().includes(term) ||
+        getTableLabel(order).toLowerCase().includes(term) ||
+        getAssignedStaffLabel(order).toLowerCase().includes(term) ||
         itemNames.includes(term);
 
       return statusMatch && searchMatch;
@@ -372,6 +463,9 @@ function OrdersPage() {
                   Total
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-black uppercase text-stone-500">
+                  Payment
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-black uppercase text-stone-500">
                   Status
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-black uppercase text-stone-500">
@@ -383,7 +477,7 @@ function OrdersPage() {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-10 text-center text-sm font-bold text-stone-500"
                   >
                     <Loader2
@@ -396,7 +490,7 @@ function OrdersPage() {
               ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-10 text-center text-sm font-bold text-stone-500"
                   >
                     No orders found.
@@ -409,6 +503,13 @@ function OrdersPage() {
                     0
                   );
                   const statusBusy = savingId === order._id;
+                  const preparationCountdown = getPreparationCountdown(
+                    order,
+                    now
+                  );
+                  const displayStatus: OrderStatus = preparationCountdown?.isReady
+                    ? "READY"
+                    : order.orderStatus;
 
                   return (
                     <tr key={order._id} className="align-middle">
@@ -438,6 +539,9 @@ function OrdersPage() {
                             )}
                             {getTableLabel(order)}
                           </p>
+                          <p className="mt-2 text-xs font-bold text-stone-500">
+                            Staff: {getAssignedStaffLabel(order)}
+                          </p>
                         </div>
                       </td>
                       <td className="px-4 py-4">
@@ -446,7 +550,12 @@ function OrdersPage() {
                             {itemCount} item{itemCount === 1 ? "" : "s"}
                           </p>
                           <p className="mt-1 line-clamp-2 text-xs font-semibold text-stone-500">
-                            {order.items.map(getItemName).join(", ")}
+                            {order.items
+                              .map(
+                                (item) =>
+                                  `${item.quantity || 0}x ${getItemName(item)}`
+                              )
+                              .join(", ")}
                           </p>
                         </div>
                       </td>
@@ -454,14 +563,44 @@ function OrdersPage() {
                         {formatCurrency(order.totalAmount)}
                       </td>
                       <td className="px-4 py-4">
+                        <div className="min-w-32">
+                          <span
+                            className={[
+                              "inline-flex rounded-full px-3 py-1 text-xs font-black uppercase ring-1",
+                              paymentStatusClass[order.paymentStatus],
+                            ].join(" ")}
+                          >
+                            {order.paymentStatus}
+                          </span>
+                          <p className="mt-1 text-xs font-semibold text-stone-500">
+                            {order.paymentMethod || "Online"}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
                         <span
                           className={[
                             "inline-flex rounded-full px-3 py-1 text-xs font-black uppercase ring-1",
-                            statusClass[order.orderStatus],
+                            statusClass[displayStatus],
                           ].join(" ")}
                         >
-                          {order.orderStatus}
+                          {displayStatus}
                         </span>
+                        {preparationCountdown ? (
+                          <div
+                            className={[
+                              "mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ring-1",
+                              preparationCountdown.isReady
+                                ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
+                                : "bg-orange-50 text-orange-700 ring-orange-200",
+                            ].join(" ")}
+                          >
+                            <Clock3 size={13} />
+                            {preparationCountdown.isReady
+                              ? getReadyLabel(order)
+                              : preparationCountdown.remainingText}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex justify-end gap-2">

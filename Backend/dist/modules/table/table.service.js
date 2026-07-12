@@ -3,14 +3,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAllTableQrCodesService = exports.generateAllTableQrCodesService = exports.updateTableStatusService = exports.setupTableSettingsService = exports.getTableSettingsService = exports.getAvailableTablesService = exports.getAllTablesService = exports.createTableService = void 0;
+exports.getAllTableQrCodesService = exports.generateAllTableQrCodesService = exports.updateTableStatusService = exports.setupTableSettingsService = exports.getTableSettingsService = exports.getAvailableTablesService = exports.getTableByIdService = exports.getAllTablesService = exports.createTableService = void 0;
 const table_model_js_1 = require("./table.model.js");
 const qrcode_1 = __importDefault(require("qrcode"));
+const mongoose_1 = __importDefault(require("mongoose"));
 const DEFAULT_TABLE_COUNT = 12;
 const DEFAULT_TABLE_COLUMNS = 4;
 const getTableQrUrl = (tableId) => {
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    return `${frontendUrl}/menu?table=${tableId}`;
+    return `${frontendUrl}/menu/${tableId}`;
 };
 const addQrToTable = async (table) => {
     const qrUrl = getTableQrUrl(table._id.toString());
@@ -45,6 +46,7 @@ const formatTableSetting = (table, selectedTableId, columns = DEFAULT_TABLE_COLU
     isOccupied: table.isOccupied,
     qrUrl: table.qrUrl,
     qrCode: table.qrCode,
+    assignedStaff: table.assignedStaff,
 });
 const getFormattedTables = async (selectedTableId, columns = DEFAULT_TABLE_COLUMNS) => {
     const tables = await table_model_js_1.Table.find().sort({ tableNumber: 1 });
@@ -70,7 +72,10 @@ const ensureDefaultTables = async (totalTables = DEFAULT_TABLE_COUNT) => {
         .filter((tableNumber) => !existingNumbers.has(tableNumber))
         .map((tableNumber) => ({ tableNumber }));
     if (missingTables.length > 0) {
-        await table_model_js_1.Table.insertMany(missingTables);
+        const insertedTables = await table_model_js_1.Table.insertMany(missingTables);
+        for (const table of insertedTables) {
+            await addQrToTable(table);
+        }
     }
 };
 const createTableService = async (tableNumber) => {
@@ -85,6 +90,21 @@ const getAllTablesService = async () => {
     return await getFormattedTables();
 };
 exports.getAllTablesService = getAllTablesService;
+const getTableByIdService = async (tableId) => {
+    if (!mongoose_1.default.Types.ObjectId.isValid(tableId)) {
+        throw new Error("Table not found");
+    }
+    const table = await table_model_js_1.Table.findById(tableId).populate("assignedStaff", "userName email role isActive");
+    if (!table) {
+        throw new Error("Table not found");
+    }
+    const expectedQrUrl = getTableQrUrl(table._id.toString());
+    if (!table.qrCode || table.qrUrl !== expectedQrUrl) {
+        await addQrToTable(table);
+    }
+    return formatTableSetting(table);
+};
+exports.getTableByIdService = getTableByIdService;
 const getAvailableTablesService = async () => {
     const tables = await table_model_js_1.Table.find({
         isActive: true,
@@ -134,7 +154,7 @@ exports.generateAllTableQrCodesService = generateAllTableQrCodesService;
 const getAllTableQrCodesService = async () => {
     const tables = await table_model_js_1.Table.find().sort({ tableNumber: 1 });
     for (const table of tables) {
-        if (!table.qrCode || !table.qrUrl) {
+        if (!table.qrCode || table.qrUrl !== getTableQrUrl(table._id.toString())) {
             await addQrToTable(table);
         }
     }
@@ -145,6 +165,7 @@ const getAllTableQrCodesService = async () => {
         qrCode: table.qrCode,
         isActive: table.isActive,
         isOccupied: table.isOccupied,
+        assignedStaff: table.assignedStaff,
     }));
 };
 exports.getAllTableQrCodesService = getAllTableQrCodesService;

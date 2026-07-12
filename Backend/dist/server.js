@@ -19,6 +19,8 @@ const admin_seed_js_1 = require("./modules/auth/admin.seed.js");
 const table_routes_js_1 = __importDefault(require("./modules/table/table.routes.js"));
 const cart_routes_js_1 = __importDefault(require("./modules/cart/cart.routes.js"));
 const notification_routes_js_1 = __importDefault(require("./modules/notifications/notification.routes.js"));
+const review_routes_js_1 = __importDefault(require("./modules/reviews/review.routes.js"));
+const payment_routes_js_1 = __importDefault(require("./modules/payments/payment.routes.js"));
 const orderReady_websocket_js_1 = require("./modules/notifications/orderReady.websocket.js");
 const cors_1 = __importDefault(require("cors"));
 const app = (0, express_1.default)();
@@ -38,6 +40,8 @@ app.use("/api/orders", order_routes_js_1.default);
 app.use("/api/tables", table_routes_js_1.default);
 app.use("/api/cart", cart_routes_js_1.default);
 app.use("/api/notifications", notification_routes_js_1.default);
+app.use("/api/reviews", review_routes_js_1.default);
+app.use("/api/payments", payment_routes_js_1.default);
 (0, orderReady_websocket_js_1.initializeOrderReadyWebSocket)(server);
 const PORT = process.env.PORT || 5000;
 const startServer = async () => {

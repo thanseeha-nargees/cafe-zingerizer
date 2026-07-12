@@ -32,6 +32,18 @@ const orderSchema = new mongoose.Schema(
       default: null,
     },
 
+    tableNumber: {
+      type: Number,
+      default: null,
+    },
+
+    assignedStaff: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+
     customerName: {
       type: String,
       required: true,
@@ -66,6 +78,46 @@ const orderSchema = new mongoose.Schema(
       type: String,
       enum: ["PENDING", "PAID"],
       default: "PENDING",
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["Online"],
+      default: "Online",
+    },
+
+    paymentId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    razorpayOrderId: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true,
+    },
+
+    transactionDate: {
+      type: Date,
+      default: null,
+    },
+
+    confirmedAt: {
+      type: Date,
+      default: null,
+    },
+
+    preparingStartedAt: {
+      type: Date,
+      default: null,
+    },
+
+    estimatedReadyAt: {
+      type: Date,
+      default: null,
+      index: true,
     },
 
     foodReadyAt: {

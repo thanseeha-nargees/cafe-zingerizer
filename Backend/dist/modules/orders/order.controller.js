@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getOrderByIdController = exports.getMyOrdersController = exports.createOrderController = void 0;
 const order_service_js_1 = require("./order.service.js");
-const order_validation_js_1 = require("./order.validation.js");
 const createOrderController = async (req, res) => {
     try {
         if (!req.user) {
@@ -11,19 +10,9 @@ const createOrderController = async (req, res) => {
                 message: "Authentication required",
             });
         }
-        const validation = order_validation_js_1.createOrderSchema.safeParse(req.body);
-        if (!validation.success) {
-            return res.status(400).json({
-                success: false,
-                error: validation.error.format(),
-            });
-        }
-        const userId = req.user._id;
-        const { orderType, tableId, customerName, customerPhone } = validation.data;
-        const order = await (0, order_service_js_1.createOrderService)(userId, orderType, customerName, customerPhone, tableId);
-        res.status(201).json({
-            success: true,
-            data: order,
+        return res.status(400).json({
+            success: false,
+            message: "Prepaid payment is required before creating an order",
         });
     }
     catch (error) {

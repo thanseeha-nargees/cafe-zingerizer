@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
 import {
-  createOrderService,
   getOrderByIdService,
   getMyOrdersService,
 } from "./order.service.js";
-import { createOrderSchema } from "./order.validation.js";
 
 export const createOrderController = async (
   req: Request,
@@ -18,29 +16,9 @@ export const createOrderController = async (
       });
     }
 
-    const validation = createOrderSchema.safeParse(req.body);
-
-    if (!validation.success) {
-      return res.status(400).json({
-        success: false,
-        error: validation.error.format(),
-      });
-    }
-
-    const userId = req.user._id;
-    const { orderType, tableId, customerName, customerPhone } = validation.data;
-
-    const order = await createOrderService(
-      userId,
-      orderType,
-      customerName,
-      customerPhone,
-      tableId
-    );
-
-    res.status(201).json({
-      success: true,
-      data: order,
+    return res.status(400).json({
+      success: false,
+      message: "Prepaid payment is required before creating an order",
     });
   } catch (error) {
     res.status(500).json({

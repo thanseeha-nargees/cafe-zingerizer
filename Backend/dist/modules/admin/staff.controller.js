@@ -8,6 +8,7 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const zod_1 = require("zod");
 const password_js_1 = require("../../utils/password.js");
 const user_schema_js_1 = require("../auth/user.schema.js");
+const notification_service_js_1 = require("../notifications/notification.service.js");
 const table_model_js_1 = require("../table/table.model.js");
 const staffRoles = ["admin", "staff"];
 const staffRoleValues = [...staffRoles];
@@ -201,6 +202,36 @@ const assignTableToStaffController = async (req, res) => {
         table.assignedStaff = staffId ? new mongoose_1.default.Types.ObjectId(staffId) : null;
         await table.save();
         await table.populate("assignedStaff", "userName email role isActive");
+        const notificationTasks = [
+            (0, notification_service_js_1.createNotificationsForRole)("admin", {
+                title: staffId ? "Table assignment updated" : "Table unassigned",
+                message: staffId
+                    ? `Table ${table.tableNumber} was assigned to staff.`
+                    : `Table ${table.tableNumber} is now unassigned.`,
+                type: "STAFF_ASSIGNMENT",
+                link: "/admin/staff",
+                metadata: {
+                    tableId: table._id.toString(),
+                    tableNumber: table.tableNumber,
+                    staffId,
+                },
+            }),
+        ];
+        if (staffId) {
+            notificationTasks.push((0, notification_service_js_1.createNotification)({
+                userId: staffId,
+                role: "staff",
+                title: "New table assignment",
+                message: `Table ${table.tableNumber} has been assigned to you.`,
+                type: "STAFF_ASSIGNMENT",
+                link: "/staff/tables",
+                metadata: {
+                    tableId: table._id.toString(),
+                    tableNumber: table.tableNumber,
+                },
+            }));
+        }
+        await Promise.all(notificationTasks);
         return res.status(200).json({
             success: true,
             table: formatTableAssignment(table),

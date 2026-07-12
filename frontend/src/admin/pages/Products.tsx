@@ -8,6 +8,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
@@ -21,6 +22,8 @@ type Product = {
   category: string;
   image?: string;
   isAvailable: boolean;
+  averageRating?: number;
+  reviewCount?: number;
   createdAt?: string;
 };
 
@@ -408,6 +411,14 @@ function ProductsPage() {
                           </p>
                           <p className="mt-1 line-clamp-1 text-sm font-medium text-stone-500">
                             {product.description || "No description"}
+                          </p>
+                          <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-stone-500">
+                            <Star
+                              size={13}
+                              className="fill-amber-400 text-amber-400"
+                            />
+                            {(product.averageRating || 0).toFixed(1)} (
+                            {product.reviewCount || 0} reviews)
                           </p>
                         </div>
                       </div>

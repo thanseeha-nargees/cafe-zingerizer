@@ -41,6 +41,9 @@ export type StaffOrder = {
   orderStatus: StaffOrderStatus;
   paymentStatus: "PENDING" | "PAID";
   createdAt: string;
+  confirmedAt?: string | null;
+  preparingStartedAt?: string | null;
+  estimatedReadyAt?: string | null;
   updatedAt?: string;
 };
 
@@ -58,6 +61,7 @@ export type StaffSummary = {
   assignedTables: number;
   occupiedTables: number;
   activeOrders: number;
+  completedOrders: number;
   readyOrders: number;
   servedToday: number;
 };

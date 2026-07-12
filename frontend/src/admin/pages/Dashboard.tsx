@@ -11,6 +11,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { api } from "../../api/axios";
+import { useOrderEvents } from "../../utils/useOrderEvents";
 
 type RecentOrder = {
   _id: string;
@@ -199,6 +200,12 @@ function AdminDashboard() {
       window.clearInterval(refreshTimer);
     };
   }, [loadDashboard]);
+
+  const handleOrderEvent = useCallback(() => {
+    void loadDashboard(false);
+  }, [loadDashboard]);
+
+  useOrderEvents(handleOrderEvent);
 
   const stats = useMemo(
     () => [

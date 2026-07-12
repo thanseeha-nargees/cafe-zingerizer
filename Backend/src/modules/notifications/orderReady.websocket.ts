@@ -14,6 +14,15 @@ type OrderReadySource = {
   customerName?: string;
 };
 
+type OrderEventSource = {
+  _id: unknown;
+  userId?: unknown;
+  tableId?: unknown;
+  assignedStaff?: unknown;
+  orderStatus?: string;
+  customerName?: string;
+};
+
 type OrderReadyPayload = {
   type: "ORDER_READY";
   orderId: string;
@@ -23,7 +32,37 @@ type OrderReadyPayload = {
   sentAt: string;
 };
 
+type OrderEventPayload = {
+  type: "ORDER_CREATED" | "ORDER_STATUS_UPDATED";
+  orderId: string;
+  orderStatus?: string;
+  customerName?: string;
+  tableId?: string;
+  assignedStaffId?: string;
+  sentAt: string;
+};
+
+type NotificationEventPayload = {
+  type: "NOTIFICATION_CREATED";
+  notification: {
+    _id: string;
+    userId: string | null;
+    role: string;
+    title: string;
+    message: string;
+    type: string;
+    link: string;
+    metadata: Record<string, unknown>;
+    isRead: boolean;
+    readAt: Date | null;
+    createdAt: Date;
+  };
+  unreadDelta: number;
+  sentAt: string;
+};
+
 const clientsByUserId = new Map<string, Set<Duplex>>();
+const clientsByRole = new Map<string, Set<Duplex>>();
 let initialized = false;
 
 const getId = (value: unknown) => {
@@ -84,11 +123,16 @@ const authenticateRequest = async (request: IncomingMessage) => {
   if (!token || !secret) return null;
 
   const decoded = jwt.verify(token, secret) as AuthUser;
-  const user = await User.findById(decoded.userId).select("_id isActive").lean();
+  const user = await User.findById(decoded.userId)
+    .select("_id role isActive")
+    .lean();
 
   if (!user?.isActive) return null;
 
-  return String(user._id);
+  return {
+    userId: String(user._id),
+    role: user.role,
+  };
 };
 
 const encodeFrame = (payload: string | Buffer, opcode = 0x1) => {
@@ -113,16 +157,26 @@ const encodeFrame = (payload: string | Buffer, opcode = 0x1) => {
   return Buffer.concat([header, data]);
 };
 
-const addClient = (userId: string, socket: Duplex) => {
+const addClient = (userId: string, role: string, socket: Duplex) => {
   const clients = clientsByUserId.get(userId) ?? new Set<Duplex>();
   clients.add(socket);
   clientsByUserId.set(userId, clients);
+
+  const roleClients = clientsByRole.get(role) ?? new Set<Duplex>();
+  roleClients.add(socket);
+  clientsByRole.set(role, roleClients);
 
   const cleanup = () => {
     clients.delete(socket);
 
     if (clients.size === 0) {
       clientsByUserId.delete(userId);
+    }
+
+    roleClients.delete(socket);
+
+    if (roleClients.size === 0) {
+      clientsByRole.delete(role);
     }
   };
 
@@ -169,9 +223,9 @@ const handleUpgrade = async (request: IncomingMessage, socket: Duplex) => {
   }
 
   try {
-    const userId = await authenticateRequest(request);
+    const auth = await authenticateRequest(request);
 
-    if (!userId) {
+    if (!auth) {
       rejectSocket(socket, 401, "Unauthorized");
       return;
     }
@@ -192,7 +246,7 @@ const handleUpgrade = async (request: IncomingMessage, socket: Duplex) => {
       ].join("\r\n")
     );
 
-    addClient(userId, socket);
+    addClient(auth.userId, auth.role, socket);
   } catch {
     rejectSocket(socket, 401, "Unauthorized");
   }
@@ -228,4 +282,83 @@ export const notifyOrderReady = (order: OrderReadySource) => {
       client.write(frame);
     }
   }
+};
+
+const writePayload = (
+  clients: Set<Duplex> | undefined,
+  payload: OrderEventPayload | NotificationEventPayload
+) => {
+  if (!clients || clients.size === 0) return;
+
+  const frame = encodeFrame(JSON.stringify(payload));
+
+  for (const client of clients) {
+    if (client.writable) {
+      client.write(frame);
+    }
+  }
+};
+
+const getAssignedStaffId = (order: OrderEventSource) => {
+  const assignedStaffId = getId(order.assignedStaff);
+
+  if (assignedStaffId) return assignedStaffId;
+
+  if (
+    order.tableId &&
+    typeof order.tableId === "object" &&
+    "assignedStaff" in order.tableId
+  ) {
+    return getId((order.tableId as { assignedStaff?: unknown }).assignedStaff);
+  }
+
+  return "";
+};
+
+const notifyOrderEvent = (
+  order: OrderEventSource,
+  type: OrderEventPayload["type"]
+) => {
+  const assignedStaffId = getAssignedStaffId(order);
+  const payload: OrderEventPayload = {
+    type,
+    orderId: getId(order._id),
+    orderStatus: order.orderStatus,
+    customerName: order.customerName,
+    tableId: getId(order.tableId),
+    assignedStaffId,
+    sentAt: new Date().toISOString(),
+  };
+
+  writePayload(clientsByRole.get("admin"), payload);
+
+  if (assignedStaffId) {
+    writePayload(clientsByUserId.get(assignedStaffId), payload);
+  }
+};
+
+export const notifyOrderCreated = (order: OrderEventSource) => {
+  notifyOrderEvent(order, "ORDER_CREATED");
+};
+
+export const notifyOrderStatusUpdated = (order: OrderEventSource) => {
+  notifyOrderEvent(order, "ORDER_STATUS_UPDATED");
+};
+
+export const broadcastNotification = (
+  notification: NotificationEventPayload["notification"]
+) => {
+  const payload: NotificationEventPayload = {
+    type: "NOTIFICATION_CREATED",
+    notification,
+    unreadDelta: notification.isRead ? 0 : 1,
+    sentAt: new Date().toISOString(),
+  };
+
+  if (notification.userId) {
+    writePayload(clientsByUserId.get(notification.userId), payload);
+    return;
+  }
+
+  writePayload(clientsByRole.get(notification.role), payload);
 };

@@ -5,5 +5,7 @@ const cart_controller_js_1 = require("./cart.controller.js");
 const router = (0, express_1.Router)();
 router.post("/", cart_controller_js_1.addToCart);
 router.get("/:userId", cart_controller_js_1.getCart);
+router.patch("/:userId/items/:menuItemId", cart_controller_js_1.updateCartItemQuantity);
+router.delete("/:userId/items/:menuItemId", cart_controller_js_1.removeCartItem);
 exports.default = router;
 //# sourceMappingURL=cart.routes.js.map

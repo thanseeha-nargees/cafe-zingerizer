@@ -2,15 +2,24 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Loader2,
+  Info,
   Search,
   ShoppingBasket,
   SlidersHorizontal,
   Sparkles,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/axios";
 import Navbar from "../components/Navbar";
+import ProductReviewsPanel from "../components/reviews/ProductReviewsPanel";
+import StarRating from "../components/reviews/StarRating";
+import type { RatingBreakdown, ReviewSummary } from "../reviews/types";
+import {
+  clearQrTableSession,
+  saveQrTableSession,
+} from "../utils/qrTableSession";
 
 type AuthUser = {
   id: string;
@@ -26,6 +35,9 @@ type MenuItem = {
   category: string;
   image?: string;
   isAvailable: boolean;
+  averageRating?: number;
+  reviewCount?: number;
+  ratingBreakdown?: RatingBreakdown;
 };
 
 type CartItem = {
@@ -35,6 +47,14 @@ type CartItem = {
 
 type Cart = {
   items: CartItem[];
+};
+
+type Table = {
+  _id: string;
+  tableNumber: number;
+  label?: string;
+  isActive: boolean;
+  isOccupied: boolean;
 };
 
 type SortKey = "featured" | "price-asc" | "price-desc" | "name";
@@ -81,10 +101,12 @@ const resolveMenuItem = (item: CartItem) =>
 function ProductCard({
   item,
   onAdd,
+  onView,
   adding,
 }: {
   item: MenuItem;
   onAdd: (item: MenuItem) => void;
+  onView: (item: MenuItem) => void;
   adding: boolean;
 }) {
   return (
@@ -116,6 +138,12 @@ function ProductCard({
           <p className="min-h-12 text-sm leading-6 text-stone-500">
             {item.description || "Freshly prepared and ready to order."}
           </p>
+          <div className="flex items-center gap-2">
+            <StarRating value={item.averageRating || 0} size={15} />
+            <span className="text-xs font-bold text-stone-500">
+              {(item.averageRating || 0).toFixed(1)} ({item.reviewCount || 0})
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-3">
@@ -128,15 +156,25 @@ function ProductCard({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => onAdd(item)}
-            disabled={adding || !item.isAvailable}
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-stone-950 px-5 text-sm font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-stone-300"
-          >
-            {adding ? <Loader2 size={16} className="animate-spin" /> : null}
-            <span>{adding ? "Adding" : "Add to Cart"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onView(item)}
+              className="inline-flex h-11 items-center gap-2 rounded-full border border-orange-100 bg-white px-4 text-sm font-bold text-stone-800 transition hover:border-orange-200 hover:text-orange-700"
+            >
+              <Info size={16} />
+              Details
+            </button>
+            <button
+              type="button"
+              onClick={() => onAdd(item)}
+              disabled={adding || !item.isAvailable}
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-stone-950 px-5 text-sm font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-stone-300"
+            >
+              {adding ? <Loader2 size={16} className="animate-spin" /> : null}
+              <span>{adding ? "Adding" : "Add"}</span>
+            </button>
+          </div>
         </div>
       </div>
     </article>
@@ -146,9 +184,12 @@ function ProductCard({
 const Menu = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { tableId: routeTableId } = useParams();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<Cart | null>(null);
+  const [qrTable, setQrTable] = useState<Table | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<MenuItem | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("featured");
@@ -156,7 +197,9 @@ const Menu = () => {
   const [loading, setLoading] = useState(true);
   const [addingId, setAddingId] = useState("");
   const [error, setError] = useState("");
+  const [qrError, setQrError] = useState("");
   const deferredSearch = useDeferredValue(search);
+  const qrTableId = routeTableId || searchParams.get("table") || "";
 
   const loadCart = async (userId: string) => {
     const cartResponse = await api.get<{ cart: Cart | null }>(`/cart/${userId}`);
@@ -164,12 +207,12 @@ const Menu = () => {
   };
 
   useEffect(() => {
-    const tableId = searchParams.get("table");
-
-    if (tableId) {
-      localStorage.setItem("selectedTableId", tableId);
+    if (routeTableId || searchParams.get("table")) {
+      saveQrTableSession(routeTableId || searchParams.get("table") || "");
+    } else {
+      clearQrTableSession();
     }
-  }, [searchParams]);
+  }, [routeTableId, searchParams]);
 
   useEffect(() => {
     let mounted = true;
@@ -179,6 +222,16 @@ const Menu = () => {
       setError("");
 
       try {
+        let validatedTable: Table | null = null;
+
+        if (qrTableId) {
+          const tableResponse = await api.get<{ data: Table }>(
+            `/tables/${qrTableId}`
+          );
+          validatedTable = tableResponse.data.data;
+          saveQrTableSession(validatedTable._id, validatedTable.tableNumber);
+        }
+
         const [meResponse, menuResponse] = await Promise.all([
           api.get<{ user: AuthUser }>("/auth/me"),
           api.get<{ menus: MenuItem[] }>("/menu"),
@@ -188,6 +241,8 @@ const Menu = () => {
 
         setUser(meResponse.data.user);
         setItems(menuResponse.data.menus.filter((item) => item.isAvailable));
+        setQrTable(validatedTable);
+        setQrError("");
 
         const cartResponse = await api.get<{ cart: Cart | null }>(
           `/cart/${meResponse.data.user.id}`
@@ -198,12 +253,16 @@ const Menu = () => {
         }
       } catch (loadError) {
         if (mounted) {
-          setError(
-            getApiMessage(
-              loadError,
-              "Unable to load menu. Please check that the backend menu and cart routes are running."
-            )
+          const message = getApiMessage(
+            loadError,
+            "Unable to load menu. Please check that the backend menu and cart routes are running."
           );
+
+          if (qrTableId) {
+            setQrError(message);
+          } else {
+            setError(message);
+          }
         }
       } finally {
         if (mounted) setLoading(false);
@@ -215,7 +274,7 @@ const Menu = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [qrTableId]);
 
   const categoryCounts = useMemo(() => {
     const counts = items.reduce<Record<string, number>>((accumulator, item) => {
@@ -282,8 +341,28 @@ const Menu = () => {
       return total + (menuItem?.price || 0) * item.quantity;
     }, 0) || 0;
 
-  const selectedTableId =
-    searchParams.get("table") || localStorage.getItem("selectedTableId") || "";
+  const selectedTableId = qrTable?._id || qrTableId;
+
+  if (!loading && qrError) {
+    return (
+      <>
+        <Navbar />
+        <main className="flex min-h-screen items-center justify-center bg-orange-50 px-4">
+          <section className="w-full max-w-lg rounded-lg border border-red-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-sm font-extrabold uppercase tracking-wide text-red-600">
+              Invalid QR Code
+            </p>
+            <h1 className="mt-3 text-3xl font-black text-stone-950">
+              This table link is not available
+            </h1>
+            <p className="mt-3 text-sm font-semibold leading-6 text-stone-500">
+              {qrError}
+            </p>
+          </section>
+        </main>
+      </>
+    );
+  }
 
   const handleAdd = async (item: MenuItem) => {
     if (!user) return;
@@ -302,6 +381,31 @@ const Menu = () => {
     } finally {
       setAddingId("");
     }
+  };
+
+  const updateProductSummary = (productId: string, summary: ReviewSummary) => {
+    setItems((current) =>
+      current.map((item) =>
+        item._id === productId
+          ? {
+              ...item,
+              averageRating: summary.averageRating,
+              reviewCount: summary.reviewCount,
+              ratingBreakdown: summary.ratingBreakdown,
+            }
+          : item
+      )
+    );
+    setSelectedProduct((current) =>
+      current && current._id === productId
+        ? {
+            ...current,
+            averageRating: summary.averageRating,
+            reviewCount: summary.reviewCount,
+            ratingBreakdown: summary.ratingBreakdown,
+          }
+        : current
+    );
   };
 
   return (
@@ -347,7 +451,9 @@ const Menu = () => {
                   </p>
                   <p className="mt-1 flex items-center gap-2 text-sm font-bold text-white">
                     <UtensilsCrossed size={16} />
-                    {selectedTableId ? "Dine-in detected from table QR" : "Ready for dine-in or takeaway"}
+                    {qrTable
+                      ? `Dine-in detected for Table ${qrTable.tableNumber}`
+                      : "Ready for dine-in or takeaway"}
                   </p>
                 </div>
               </div>
@@ -472,6 +578,7 @@ const Menu = () => {
                         item={item}
                         adding={addingId === item._id}
                         onAdd={handleAdd}
+                        onView={setSelectedProduct}
                       />
                     ))}
                   </div>
@@ -498,7 +605,9 @@ const Menu = () => {
 
               <button
                 type="button"
-                onClick={() => navigate("/checkout")}
+                onClick={() =>
+                  navigate(selectedTableId ? `/checkout/${selectedTableId}` : "/checkout")
+                }
                 className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full bg-orange-600 px-5 text-sm font-bold text-white transition hover:bg-orange-500"
               >
                 <ShoppingBasket size={18} />
@@ -506,6 +615,70 @@ const Menu = () => {
                 <ArrowRight size={16} />
               </button>
             </div>
+          </div>
+        ) : null}
+
+        {selectedProduct ? (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-stone-950/55 px-4 py-6">
+            <article className="max-h-full w-full max-w-xl overflow-y-auto rounded-[28px] bg-white shadow-2xl">
+              <div className="relative h-64 bg-orange-100">
+                <img
+                  src={selectedProduct.image || fallbackImage}
+                  alt={selectedProduct.name}
+                  className="h-full w-full rounded-t-[28px] object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedProduct(null)}
+                  aria-label="Close product details"
+                  className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-5">
+                <p className="inline-flex rounded-full bg-orange-50 px-3 py-1 text-xs font-black uppercase text-orange-700">
+                  {selectedProduct.category}
+                </p>
+                <h2 className="mt-3 text-2xl font-black text-stone-950">
+                  {selectedProduct.name}
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-stone-600">
+                  {selectedProduct.description ||
+                    "Freshly prepared and ready to order."}
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <StarRating value={selectedProduct.averageRating || 0} size={18} />
+                  <span className="text-sm font-bold text-stone-500">
+                    {(selectedProduct.averageRating || 0).toFixed(1)} from{" "}
+                    {selectedProduct.reviewCount || 0} review
+                    {(selectedProduct.reviewCount || 0) === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <p className="text-2xl font-black text-orange-700">
+                    {formatCurrency(selectedProduct.price)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleAdd(selectedProduct)}
+                    disabled={addingId === selectedProduct._id}
+                    className="inline-flex h-11 items-center gap-2 rounded-full bg-stone-950 px-5 text-sm font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {addingId === selectedProduct._id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : null}
+                    Add to Cart
+                  </button>
+                </div>
+                <ProductReviewsPanel
+                  productId={selectedProduct._id}
+                  onSummaryChange={(summary) =>
+                    updateProductSummary(selectedProduct._id, summary)
+                  }
+                />
+              </div>
+            </article>
           </div>
         ) : null}
       </main>

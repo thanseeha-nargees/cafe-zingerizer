@@ -26,4 +26,5 @@ export interface TableSetting {
   isOccupied: boolean;
   qrUrl: string;
   qrCode: string;
+  assignedStaff?: unknown;
 }

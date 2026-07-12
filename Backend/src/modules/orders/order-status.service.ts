@@ -1,8 +1,16 @@
 import mongoose from "mongoose";
-import { notifyOrderReady } from "../notifications/orderReady.websocket.js";
+import {
+  notifyOrderReady,
+  notifyOrderStatusUpdated,
+} from "../notifications/orderReady.websocket.js";
+import { createOrderStatusNotifications } from "../notifications/notification.service.js";
 import { Table } from "../table/table.model.js";
 import { Order } from "./order.model.js";
-import { clearScheduledFoodReadyNotification } from "./order.scheduler.js";
+import {
+  clearScheduledFoodReadyNotification,
+  getEstimatedReadyAt,
+  scheduleFoodReadyNotification,
+} from "./order.scheduler.js";
 import {
   sendFoodReadySmsOnce,
   type FoodReadySmsResult,
@@ -54,17 +62,62 @@ export const updateOrderStatusWithSideEffects = async (
   }
 
   const previousStatus = existingOrder.orderStatus as OrderStatus;
+  const statusUpdate: Record<string, unknown> = { orderStatus: nextStatus };
+  const shouldStartPreparationTimer =
+    nextStatus === "PREPARING" && previousStatus !== "PREPARING";
+  const shouldClearPreparationTimer =
+    previousStatus === "PREPARING" && nextStatus !== "PREPARING";
+
+  if (shouldStartPreparationTimer) {
+    const preparingStartedAt = new Date();
+    const estimatedReadyAt = getEstimatedReadyAt(preparingStartedAt);
+
+    statusUpdate.preparingStartedAt = preparingStartedAt;
+    statusUpdate.estimatedReadyAt = estimatedReadyAt;
+    statusUpdate.foodReadyAt = estimatedReadyAt;
+    statusUpdate.foodReadySmsSentAt = null;
+  }
+
   const order = await Order.findByIdAndUpdate(
     orderId,
-    { $set: { orderStatus: nextStatus } },
+    { $set: statusUpdate },
     { new: true, runValidators: true }
   )
     .populate("items.menuItemId", "name category image price")
-    .populate("tableId", "tableNumber isActive isOccupied assignedStaff")
+    .populate({
+      path: "tableId",
+      select: "tableNumber isActive isOccupied assignedStaff",
+      populate: {
+        path: "assignedStaff",
+        select: "userName email role isActive",
+      },
+    })
+    .populate("assignedStaff", "userName email role isActive")
     .populate("userId", "userName email");
 
   if (!order) {
     throw new OrderStatusUpdateError("Order not found", 404);
+  }
+
+  if (shouldStartPreparationTimer && order.estimatedReadyAt) {
+    await scheduleFoodReadyNotification(
+      String(order._id),
+      order.estimatedReadyAt
+    ).catch((error) => {
+      console.log(
+        "food ready notification queue schedule failed",
+        getErrorMessage(error)
+      );
+    });
+  } else if (shouldClearPreparationTimer) {
+    await clearScheduledFoodReadyNotification(String(order._id)).catch(
+      (error) => {
+        console.log(
+          "food ready notification queue cleanup failed",
+          getErrorMessage(error)
+        );
+      }
+    );
   }
 
   if (
@@ -78,7 +131,14 @@ export const updateOrderStatusWithSideEffects = async (
         : order.tableId;
 
     await Table.findByIdAndUpdate(tableId, { isOccupied: false });
-    await order.populate("tableId", "tableNumber isActive isOccupied assignedStaff");
+    await order.populate({
+      path: "tableId",
+      select: "tableNumber isActive isOccupied assignedStaff",
+      populate: {
+        path: "assignedStaff",
+        select: "userName email role isActive",
+      },
+    });
   }
 
   let foodReadySms: FoodReadySmsResponse | null = null;
@@ -112,6 +172,9 @@ export const updateOrderStatusWithSideEffects = async (
       );
     }
   }
+
+  await createOrderStatusNotifications(order, nextStatus, previousStatus);
+  notifyOrderStatusUpdated(order);
 
   return { order, foodReadySms };
 };
