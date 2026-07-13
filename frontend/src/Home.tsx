@@ -66,7 +66,7 @@ const getApiMessage = (error: unknown, fallback: string) => {
 const categoryCards = [
   {
     name: "Burgers",
-    query: "Burgers",
+    query: "burgers",
     description: "Stacked, juicy and toasted to order.",
     image:
       "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=700&h=520&fit=crop&q=85",
@@ -74,23 +74,23 @@ const categoryCards = [
   },
   {
     name: "Wraps",
-    query: "Wraps",
+    query: "wraps",
     description: "Fresh fillings folded into soft wraps.",
     image:
       "https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=700&h=520&fit=crop&q=85",
     icon: Sandwich,
   },
   {
-    name: "Snacks",
-    query: "Snacks",
+    name: "Sides",
+    query: "sides",
     description: "Crispy sides for quick cravings.",
     image:
       "https://images.unsplash.com/photo-1639024471283-03518883512d?w=700&h=520&fit=crop&q=85",
     icon: Flame,
   },
   {
-    name: "Beverages",
-    query: "Beverages",
+    name: "Drinks",
+    query: "drinks",
     description: "Cool sips, shakes and cafe refreshers.",
     image:
       "https://images.unsplash.com/photo-1544145945-f90425340c7e?w=700&h=520&fit=crop&q=85",
@@ -98,7 +98,7 @@ const categoryCards = [
   },
   {
     name: "Desserts",
-    query: "Desserts",
+    query: "desserts",
     description: "Sweet finishes for every table.",
     image:
       "https://images.unsplash.com/photo-1551024506-0bccd828d307?w=700&h=520&fit=crop&q=85",

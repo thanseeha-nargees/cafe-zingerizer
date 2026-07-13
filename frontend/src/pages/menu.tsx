@@ -59,6 +59,11 @@ type Table = {
 
 type SortKey = "featured" | "price-asc" | "price-desc" | "name";
 
+type ManualCategorySelection = {
+  querySlug: string;
+  category: string;
+};
+
 const fallbackImage =
   "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=700&h=520&fit=crop&q=80";
 
@@ -97,6 +102,14 @@ const getApiMessage = (error: unknown, fallback: string) => {
 
 const resolveMenuItem = (item: CartItem) =>
   typeof item.menuItemId === "string" ? null : item.menuItemId;
+
+const getCategorySlug = (category: string) =>
+  category
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
 function ProductCard({
   item,
@@ -190,7 +203,8 @@ const Menu = () => {
   const [cart, setCart] = useState<Cart | null>(null);
   const [qrTable, setQrTable] = useState<Table | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<MenuItem | null>(null);
-  const [activeCategory, setActiveCategory] = useState("All");
+  const [manualCategorySelection, setManualCategorySelection] =
+    useState<ManualCategorySelection | null>(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("featured");
   const [showSortOptions, setShowSortOptions] = useState(false);
@@ -199,7 +213,10 @@ const Menu = () => {
   const [error, setError] = useState("");
   const [qrError, setQrError] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const qrTableId = routeTableId || searchParams.get("table") || "";
+  const tableQueryParam = searchParams.get("table") || "";
+  const categoryQueryParam = searchParams.get("category") || "";
+  const categoryQuerySlug = getCategorySlug(categoryQueryParam);
+  const qrTableId = routeTableId || tableQueryParam;
 
   const loadCart = async (userId: string) => {
     const cartResponse = await api.get<{ cart: Cart | null }>(`/cart/${userId}`);
@@ -207,12 +224,12 @@ const Menu = () => {
   };
 
   useEffect(() => {
-    if (routeTableId || searchParams.get("table")) {
-      saveQrTableSession(routeTableId || searchParams.get("table") || "");
+    if (routeTableId || tableQueryParam) {
+      saveQrTableSession(routeTableId || tableQueryParam);
     } else {
       clearQrTableSession();
     }
-  }, [routeTableId, searchParams]);
+  }, [routeTableId, tableQueryParam]);
 
   useEffect(() => {
     let mounted = true;
@@ -290,6 +307,24 @@ const Menu = () => {
           : counts[category] || 0,
     }));
   }, [items]);
+
+  const urlCategory = useMemo(() => {
+    if (!categoryQuerySlug) return "All";
+
+    return (
+      categoryCounts
+        .map(({ category }) => category)
+        .find(
+          (category) =>
+            category !== "All" && getCategorySlug(category) === categoryQuerySlug
+        ) || "All"
+    );
+  }, [categoryCounts, categoryQuerySlug]);
+
+  const activeCategory =
+    manualCategorySelection?.querySlug === categoryQuerySlug
+      ? manualCategorySelection.category
+      : urlCategory;
 
   const filteredItems = useMemo(() => {
     const searchTerm = deferredSearch.trim().toLowerCase();
@@ -517,7 +552,12 @@ const Menu = () => {
                   <button
                     key={category}
                     type="button"
-                    onClick={() => setActiveCategory(category)}
+                    onClick={() =>
+                      setManualCategorySelection({
+                        querySlug: categoryQuerySlug,
+                        category,
+                      })
+                    }
                     className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${
                       selected
                         ? "bg-stone-950 text-white"

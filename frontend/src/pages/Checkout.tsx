@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Loader2,
   LockKeyhole,
-  MapPin,
   Minus,
   Plus,
   QrCode,
@@ -922,29 +921,6 @@ const Checkout = () => {
                 </div>
               </section>
             )}
-
-            <section>
-              <h2 className="mb-3 text-xs font-extrabold uppercase text-stone-600">
-                Takeaway / Delivery Address
-              </h2>
-              <div className="flex items-center gap-4 rounded-lg border border-orange-100 bg-white p-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-700">
-                  <MapPin size={19} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-extrabold text-stone-950">Home</p>
-                  <p className="mt-1 text-xs leading-5 text-stone-500">
-                    Flat 402, Sunset Towers, 12th Main, Indiranagar, Bengaluru
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="text-xs font-extrabold text-orange-700"
-                >
-                  Change
-                </button>
-              </div>
-            </section>
 
             <section>
               <div className="mb-3 flex items-center justify-between">
