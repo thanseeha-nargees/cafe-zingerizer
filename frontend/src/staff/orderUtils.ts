@@ -2,7 +2,8 @@ import type { StaffOrder, StaffOrderItem, StaffOrderStatus } from "./types";
 
 export const staffStatusLabels: Record<StaffOrderStatus, string> = {
   PENDING: "Pending",
-  CONFIRMED: "Accepted",
+  CONFIRMED: "Confirmed",
+  ACCEPTED: "Accepted",
   PREPARING: "Preparing",
   READY: "Ready",
   COMPLETED: "Served",
@@ -18,11 +19,28 @@ export const staffActionStatuses: StaffOrderStatus[] = [
   "CANCELLED",
 ];
 
+export const takeawayActionStatuses: StaffOrderStatus[] = [
+  "PREPARING",
+  "READY",
+  "COMPLETED",
+];
+
+export const staffVisibleStatuses: StaffOrderStatus[] = [
+  "PENDING",
+  "CONFIRMED",
+  "ACCEPTED",
+  "PREPARING",
+  "READY",
+  "COMPLETED",
+  "CANCELLED",
+];
+
 export const terminalStatuses: StaffOrderStatus[] = ["COMPLETED", "CANCELLED"];
 
 export const statusClass: Record<StaffOrderStatus, string> = {
   PENDING: "bg-amber-50 text-amber-700 ring-amber-200",
   CONFIRMED: "bg-sky-50 text-sky-700 ring-sky-200",
+  ACCEPTED: "bg-teal-50 text-teal-700 ring-teal-200",
   PREPARING: "bg-orange-50 text-orange-700 ring-orange-200",
   READY: "bg-violet-50 text-violet-700 ring-violet-200",
   COMPLETED: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -74,6 +92,45 @@ export const getTableLabel = (order: StaffOrder) => {
   }
 
   return "Dining";
+};
+
+export const getAssignedStaffId = (order: StaffOrder) => {
+  if (!order.assignedStaff) return "";
+
+  if (typeof order.assignedStaff === "object" && order.assignedStaff._id) {
+    return order.assignedStaff._id;
+  }
+
+  return String(order.assignedStaff);
+};
+
+export const getAssignedStaffName = (order: StaffOrder) => {
+  if (order.assignedStaffName) return order.assignedStaffName;
+
+  if (
+    typeof order.assignedStaff === "object" &&
+    order.assignedStaff?.userName
+  ) {
+    return order.assignedStaff.userName;
+  }
+
+  return "";
+};
+
+export const getAssignmentLabel = (
+  order: StaffOrder,
+  currentStaffId?: string
+) => {
+  const assignedStaffId = getAssignedStaffId(order);
+
+  if (!assignedStaffId) return "Unassigned";
+  if (currentStaffId && assignedStaffId === currentStaffId) {
+    return "Assigned to Me";
+  }
+
+  const staffName = getAssignedStaffName(order);
+
+  return staffName ? `Assigned to ${staffName}` : "Assigned";
 };
 
 export const getOrderLabel = (orderId: string) =>

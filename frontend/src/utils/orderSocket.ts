@@ -1,12 +1,14 @@
 export type OrderEventPayload = {
-  type: "ORDER_CREATED" | "ORDER_STATUS_UPDATED" | "ORDER_READY";
+  type: "ORDER_CREATED" | "ORDER_STATUS_UPDATED" | "ORDER_ASSIGNED" | "ORDER_READY";
   orderId: string;
   userId?: string;
+  orderType?: string;
   orderStatus?: string;
   message?: string;
   customerName?: string;
   tableId?: string;
   assignedStaffId?: string;
+  assignedStaffName?: string;
   sentAt?: string;
 };
 

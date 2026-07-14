@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ChefHat,
   Clock3,
+  Handshake,
   Loader2,
   RefreshCw,
   Search,
@@ -11,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "../../api/axios";
+import { useAppSelector } from "../../app/hooks";
 import { useOrderEvents } from "../../utils/useOrderEvents";
 import type {
   FoodReadySmsResponse,
@@ -20,13 +22,17 @@ import type {
 import {
   formatCurrency,
   formatDate,
+  getAssignedStaffId,
+  getAssignmentLabel,
   getApiMessage,
   getItemName,
   getOrderLabel,
   getTableLabel,
   staffActionStatuses,
   staffStatusLabels,
+  staffVisibleStatuses,
   statusClass,
+  takeawayActionStatuses,
   terminalStatuses,
 } from "../orderUtils";
 
@@ -40,9 +46,15 @@ type UpdateOrderStatusResponse = {
   foodReadySms?: FoodReadySmsResponse | null;
 };
 
+type AcceptTakeawayOrderResponse = {
+  order: StaffOrder;
+  message?: string;
+};
+
 const actionIcon: Record<StaffOrderStatus, typeof CheckCircle2> = {
   PENDING: Clock3,
   CONFIRMED: CheckCircle2,
+  ACCEPTED: CheckCircle2,
   PREPARING: ChefHat,
   READY: Send,
   COMPLETED: Soup,
@@ -100,9 +112,11 @@ const getPreparationCountdown = (order: StaffOrder, now: number) => {
 };
 
 function ActiveOrders() {
+  const currentUser = useAppSelector((state) => state.auth.currentUser);
   const [orders, setOrders] = useState<StaffOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
+  const [acceptingId, setAcceptingId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
@@ -204,8 +218,8 @@ function ActiveOrders() {
 
       if (response.data.foodReadySms?.status === "failed") {
         setError(
-          response.data.message ||
-            response.data.foodReadySms.error ||
+          response.data.foodReadySms.error ||
+            response.data.message ||
             "Order status updated, but SMS failed"
         );
       }
@@ -213,6 +227,30 @@ function ActiveOrders() {
       setError(getApiMessage(saveError, "Unable to update order status"));
     } finally {
       setSavingId("");
+    }
+  };
+
+  const handleAcceptOrder = async (order: StaffOrder) => {
+    setAcceptingId(order._id);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await api.patch<AcceptTakeawayOrderResponse>(
+        `/staff/orders/${order._id}/accept`
+      );
+
+      setOrders((current) =>
+        current.map((item) =>
+          item._id === order._id ? response.data.order : item
+        )
+      );
+      setNotice(`${getOrderLabel(order._id)} accepted.`);
+    } catch (acceptError) {
+      setError(getApiMessage(acceptError, "Unable to accept order"));
+      void loadOrders(true);
+    } finally {
+      setAcceptingId("");
     }
   };
 
@@ -287,7 +325,7 @@ function ActiveOrders() {
             className="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-extrabold text-slate-800 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
           >
             <option value="all">All statuses</option>
-            {staffActionStatuses.map((status) => (
+            {staffVisibleStatuses.map((status) => (
               <option key={status} value={status}>
                 {staffStatusLabels[status]}
               </option>
@@ -364,6 +402,16 @@ function ActiveOrders() {
                     0
                   );
                   const statusBusy = savingId === order._id;
+                  const acceptBusy = acceptingId === order._id;
+                  const assignedStaffId = getAssignedStaffId(order);
+                  const isTakeaway = order.orderType === "Takeaway";
+                  const isUnassignedTakeaway = isTakeaway && !assignedStaffId;
+                  const isAssignedToMe =
+                    Boolean(currentUser?.id) && assignedStaffId === currentUser?.id;
+                  const canUpdateStatus = !isTakeaway || isAssignedToMe;
+                  const actionStatuses = isTakeaway
+                    ? takeawayActionStatuses
+                    : staffActionStatuses;
                   const preparationCountdown = getPreparationCountdown(
                     order,
                     now
@@ -394,6 +442,20 @@ function ActiveOrders() {
                           <p className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-700">
                             {getTableLabel(order)}
                           </p>
+                          {isTakeaway ? (
+                            <p
+                              className={[
+                                "mt-2 inline-flex rounded-full px-2 py-1 text-[11px] font-black",
+                                isUnassignedTakeaway
+                                  ? "bg-amber-50 text-amber-700"
+                                  : isAssignedToMe
+                                    ? "bg-teal-50 text-teal-700"
+                                    : "bg-slate-100 text-slate-600",
+                              ].join(" ")}
+                            >
+                              {getAssignmentLabel(order, currentUser?.id)}
+                            </p>
+                          ) : null}
                         </div>
                       </td>
                       <td className="px-4 py-4">
@@ -441,16 +503,38 @@ function ActiveOrders() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex min-w-96 flex-wrap justify-end gap-2">
-                          {staffActionStatuses.map((status) => {
+                          {isUnassignedTakeaway ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAcceptOrder(order)}
+                              disabled={acceptBusy || statusBusy}
+                              className="inline-flex h-9 items-center gap-2 rounded-lg border border-teal-200 bg-teal-700 px-3 text-xs font-extrabold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {acceptBusy ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Handshake size={14} />
+                              )}
+                              Accept Order
+                            </button>
+                          ) : null}
+
+                          {actionStatuses.map((status) => {
                             const Icon = actionIcon[status];
                             const isCurrent = order.orderStatus === status;
+                            const isDisabled =
+                              statusBusy ||
+                              acceptBusy ||
+                              isCurrent ||
+                              !canUpdateStatus ||
+                              isUnassignedTakeaway;
 
                             return (
                               <button
                                 key={status}
                                 type="button"
                                 onClick={() => handleStatusChange(order, status)}
-                                disabled={statusBusy || isCurrent}
+                                disabled={isDisabled}
                                 className={[
                                   "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-extrabold transition disabled:cursor-not-allowed disabled:opacity-60",
                                   isCurrent

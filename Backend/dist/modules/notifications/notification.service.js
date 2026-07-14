@@ -242,6 +242,7 @@ const getStatusTitle = (status) => {
     const titles = {
         PENDING: "Order pending",
         CONFIRMED: "Order accepted",
+        ACCEPTED: "Order accepted",
         PREPARING: "Order preparing",
         READY: "Order ready",
         COMPLETED: "Order served",
@@ -300,6 +301,15 @@ const createOrderLifecycleNotifications = async (order) => {
             title: "New assigned order",
             message: `${orderLabel} is assigned to your table.`,
             type: "STAFF_ASSIGNED_ORDER",
+            link: (0, exports.getOrderNotificationLink)("staff"),
+            metadata: { orderId, status: order.orderStatus },
+        }));
+    }
+    if (order.orderType === "Takeaway" && !assignedStaffId) {
+        tasks.push((0, exports.createNotificationsForRole)("staff", {
+            title: "New takeaway order",
+            message: `${orderLabel} is waiting to be accepted.`,
+            type: "TAKEAWAY_ORDER_UNASSIGNED",
             link: (0, exports.getOrderNotificationLink)("staff"),
             metadata: { orderId, status: order.orderStatus },
         }));

@@ -1,6 +1,7 @@
 export type StaffOrderStatus =
   | "PENDING"
   | "CONFIRMED"
+  | "ACCEPTED"
   | "PREPARING"
   | "READY"
   | "COMPLETED"
@@ -30,12 +31,25 @@ export type StaffTable = {
   qrCode?: string;
 };
 
+export type StaffAssignedStaff =
+  | string
+  | {
+      _id: string;
+      userName?: string;
+      email?: string;
+      role?: string;
+      isActive?: boolean;
+    };
+
 export type StaffOrder = {
   _id: string;
   customerName: string;
   customerPhone: string;
   orderType: "Dining" | "Takeaway";
   tableId?: StaffTable | string | null;
+  assignedStaff?: StaffAssignedStaff | null;
+  assignedStaffName?: string;
+  assignedAt?: string | null;
   items: StaffOrderItem[];
   totalAmount: number;
   orderStatus: StaffOrderStatus;

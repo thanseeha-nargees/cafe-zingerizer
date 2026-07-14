@@ -11,6 +11,7 @@ router.get("/dashboard", staff_controller_js_1.getStaffDashboardController);
 router.get("/profile", staff_controller_js_1.getStaffProfileController);
 router.get("/tables", staff_controller_js_1.getStaffAssignedTablesController);
 router.get("/orders", staff_controller_js_1.getStaffOrdersController);
+router.patch("/orders/:id/accept", staff_controller_js_1.acceptTakeawayOrderController);
 router.patch("/orders/:id/status", staff_controller_js_1.updateStaffOrderStatusController);
 exports.default = router;
 //# sourceMappingURL=staff.routes.js.map

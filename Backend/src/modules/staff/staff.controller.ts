@@ -6,8 +6,11 @@ import { loginSchema } from "../auth/user.validation.js";
 import { saveUserRefreshToken } from "../auth/auth.service.js";
 import { Order } from "../orders/order.model.js";
 import {
+  ORDER_STATUSES,
+  OrderAssignmentError,
   OrderStatus,
   OrderStatusUpdateError,
+  acceptTakeawayOrderForStaff,
   isOrderStatus,
   isValidObjectId,
   updateOrderStatusWithSideEffects,
@@ -41,9 +44,16 @@ const STAFF_ALLOWED_STATUSES = [
   "CANCELLED",
 ] as const satisfies readonly OrderStatus[];
 
+const TAKEAWAY_STAFF_ALLOWED_STATUSES = [
+  "PREPARING",
+  "READY",
+  "COMPLETED",
+] as const satisfies readonly OrderStatus[];
+
 const ACTIVE_ORDER_STATUSES = [
   "PENDING",
   "CONFIRMED",
+  "ACCEPTED",
   "PREPARING",
   "READY",
 ] as const satisfies readonly OrderStatus[];
@@ -58,6 +68,11 @@ const isStaffAllowedStatus = (
   status: OrderStatus
 ): status is (typeof STAFF_ALLOWED_STATUSES)[number] =>
   (STAFF_ALLOWED_STATUSES as readonly OrderStatus[]).includes(status);
+
+const isTakeawayStaffAllowedStatus = (
+  status: OrderStatus
+): status is (typeof TAKEAWAY_STAFF_ALLOWED_STATUSES)[number] =>
+  (TAKEAWAY_STAFF_ALLOWED_STATUSES as readonly OrderStatus[]).includes(status);
 
 const formatStaffTable = (table: any) => ({
   _id: String(table._id),
@@ -84,6 +99,19 @@ const getStaffOrderOwnershipFilter = (
       assignedStaff: null,
       tableId: { $in: tableIds },
     },
+  ],
+});
+
+const getStaffActiveOrderVisibilityFilter = (
+  staffId: string,
+  tableIds: string[]
+): Record<string, unknown> => ({
+  $or: [
+    { orderType: "Takeaway" },
+    ...((getStaffOrderOwnershipFilter(staffId, tableIds).$or || []) as Record<
+      string,
+      unknown
+    >[]),
   ],
 });
 
@@ -197,8 +225,12 @@ export const getStaffDashboardController = async (
       .lean();
     const tableIds = tables.map((table) => String(table._id));
     const ownershipFilter = getStaffOrderOwnershipFilter(staffId, tableIds);
+    const activeVisibilityFilter = getStaffActiveOrderVisibilityFilter(
+      staffId,
+      tableIds
+    );
     const activeOrdersFilter: Record<string, unknown> = {
-      ...ownershipFilter,
+      ...activeVisibilityFilter,
       orderStatus: { $in: ACTIVE_ORDER_STATUSES },
     };
     const completedOrdersFilter: Record<string, unknown> = {
@@ -206,7 +238,7 @@ export const getStaffDashboardController = async (
       orderStatus: "COMPLETED",
     };
     const readyOrdersFilter: Record<string, unknown> = {
-      ...ownershipFilter,
+      ...activeVisibilityFilter,
       orderStatus: "READY",
     };
     const servedTodayFilter: Record<string, unknown> = {
@@ -277,14 +309,34 @@ export const getStaffOrdersController = async (req: Request, res: Response) => {
     const staffId = String(req.user?._id);
     const tableIds = await getAssignedTableIds(staffId);
     const scope = typeof req.query.scope === "string" ? req.query.scope : "active";
-    const filters: Record<string, unknown> = {
-      ...getStaffOrderOwnershipFilter(staffId, tableIds),
+    const ownershipFilter = getStaffOrderOwnershipFilter(staffId, tableIds);
+    const activeVisibilityFilter = getStaffActiveOrderVisibilityFilter(
+      staffId,
+      tableIds
+    );
+    const ownershipClauses = (ownershipFilter.$or || []) as Record<
+      string,
+      unknown
+    >[];
+    const allVisibilityFilter: Record<string, unknown> = {
+      $or: [
+        {
+          orderType: "Takeaway",
+          orderStatus: { $in: ACTIVE_ORDER_STATUSES },
+        },
+        ...ownershipClauses,
+      ],
     };
+    const andFilters: Record<string, unknown>[] = [];
 
     if (scope === "active") {
-      filters.orderStatus = { $in: ACTIVE_ORDER_STATUSES };
+      andFilters.push(activeVisibilityFilter);
+      andFilters.push({ orderStatus: { $in: ACTIVE_ORDER_STATUSES } });
     } else if (scope === "history") {
-      filters.orderStatus = { $in: HISTORY_ORDER_STATUSES };
+      andFilters.push(ownershipFilter);
+      andFilters.push({ orderStatus: { $in: HISTORY_ORDER_STATUSES } });
+    } else if (scope === "all") {
+      andFilters.push(allVisibilityFilter);
     } else if (scope !== "all") {
       return res.status(400).json({
         success: false,
@@ -300,16 +352,21 @@ export const getStaffOrdersController = async (req: Request, res: Response) => {
         });
       }
 
-      filters.orderStatus = req.query.status;
+      andFilters.push({ orderStatus: req.query.status });
     }
 
     if (typeof req.query.search === "string" && req.query.search.trim()) {
       const term = req.query.search.trim();
-      filters.$or = [
-        { customerName: { $regex: term, $options: "i" } },
-        { customerPhone: { $regex: term, $options: "i" } },
-      ];
+      andFilters.push({
+        $or: [
+          { customerName: { $regex: term, $options: "i" } },
+          { customerPhone: { $regex: term, $options: "i" } },
+        ],
+      });
     }
+
+    const filters =
+      andFilters.length === 1 ? andFilters[0] : { $and: andFilters };
 
     const orders = await Order.find(filters)
       .sort({ createdAt: -1 })
@@ -322,9 +379,48 @@ export const getStaffOrdersController = async (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       orders,
-      statuses: STAFF_ALLOWED_STATUSES,
+      statuses: ORDER_STATUSES,
     });
   } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: getApiMessage(error),
+    });
+  }
+};
+
+export const acceptTakeawayOrderController = async (
+  req: Request<{ id: string }>,
+  res: Response
+) => {
+  try {
+    res.set("Cache-Control", "no-store");
+
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid order id",
+      });
+    }
+
+    const order = await acceptTakeawayOrderForStaff(
+      req.params.id,
+      String(req.user?._id)
+    );
+
+    return res.status(200).json({
+      success: true,
+      order,
+      message: "Order accepted",
+    });
+  } catch (error) {
+    if (error instanceof OrderAssignmentError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: getApiMessage(error),
@@ -359,7 +455,7 @@ export const updateStaffOrderStatusController = async (
     }
 
     const order = await Order.findById(req.params.id)
-      .select("tableId assignedStaff orderStatus")
+      .select("tableId assignedStaff orderStatus orderType")
       .lean();
 
     if (!order) {
@@ -383,30 +479,55 @@ export const updateStaffOrderStatusController = async (
       });
     }
 
-    if (!order.tableId) {
-      return res.status(403).json({
-        success: false,
-        message: "This order is not assigned to your tables",
-      });
-    }
-
     const staffId = String(req.user?._id);
     const assignedStaffId = order.assignedStaff
       ? String(order.assignedStaff)
       : "";
-    const ownsAssignedOrder = assignedStaffId === staffId;
-    const ownsTable =
-      !assignedStaffId &&
-      (await Table.exists({
-        _id: order.tableId,
-        assignedStaff: staffId,
-      }));
 
-    if (!ownsAssignedOrder && !ownsTable) {
-      return res.status(403).json({
-        success: false,
-        message: "This order is not assigned to your tables",
-      });
+    if (order.orderType === "Takeaway") {
+      if (!assignedStaffId) {
+        return res.status(403).json({
+          success: false,
+          message: "Accept this order before updating its status",
+        });
+      }
+
+      if (assignedStaffId !== staffId) {
+        return res.status(403).json({
+          success: false,
+          message: "Only the assigned staff member can update this order",
+        });
+      }
+
+      if (!isTakeawayStaffAllowedStatus(nextStatus)) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Takeaway orders can only be updated to Preparing, Ready, or Completed",
+        });
+      }
+    } else {
+      if (!order.tableId) {
+        return res.status(403).json({
+          success: false,
+          message: "This order is not assigned to your tables",
+        });
+      }
+
+      const ownsAssignedOrder = assignedStaffId === staffId;
+      const ownsTable =
+        !assignedStaffId &&
+        (await Table.exists({
+          _id: order.tableId,
+          assignedStaff: staffId,
+        }));
+
+      if (!ownsAssignedOrder && !ownsTable) {
+        return res.status(403).json({
+          success: false,
+          message: "This order is not assigned to your tables",
+        });
+      }
     }
 
     const { order: updatedOrder, foodReadySms } =

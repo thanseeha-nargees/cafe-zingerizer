@@ -105,6 +105,7 @@ const formatRelativeTime = (dateValue: string) => {
 const orderStatusConfig = [
   { status: "PENDING", label: "Pending", color: "bg-amber-500" },
   { status: "CONFIRMED", label: "Confirmed", color: "bg-sky-500" },
+  { status: "ACCEPTED", label: "Accepted", color: "bg-teal-500" },
   { status: "PREPARING", label: "Preparing", color: "bg-orange-500" },
   { status: "READY", label: "Ready", color: "bg-indigo-500" },
   { status: "COMPLETED", label: "Completed", color: "bg-emerald-500" },

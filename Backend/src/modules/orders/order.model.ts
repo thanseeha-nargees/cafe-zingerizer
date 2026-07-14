@@ -44,6 +44,17 @@ const orderSchema = new mongoose.Schema(
       index: true,
     },
 
+    assignedStaffName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    assignedAt: {
+      type: Date,
+      default: null,
+    },
+
     customerName: {
       type: String,
       required: true,
@@ -66,6 +77,7 @@ const orderSchema = new mongoose.Schema(
       enum: [
         "PENDING",
         "CONFIRMED",
+        "ACCEPTED",
         "PREPARING",
         "READY",
         "COMPLETED",

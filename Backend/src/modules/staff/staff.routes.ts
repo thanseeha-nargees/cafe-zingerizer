@@ -2,6 +2,7 @@ import { Router } from "express";
 import { protect } from "../../middleware/authMiddleware.js";
 import { roleMiddleware } from "../../middleware/roleMiddleware.js";
 import {
+  acceptTakeawayOrderController,
   getStaffAssignedTablesController,
   getStaffDashboardController,
   getStaffOrdersController,
@@ -19,6 +20,7 @@ router.get("/dashboard", getStaffDashboardController);
 router.get("/profile", getStaffProfileController);
 router.get("/tables", getStaffAssignedTablesController);
 router.get("/orders", getStaffOrdersController);
+router.patch("/orders/:id/accept", acceptTakeawayOrderController);
 router.patch("/orders/:id/status", updateStaffOrderStatusController);
 
 export default router;

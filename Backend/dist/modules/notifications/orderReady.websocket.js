@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.broadcastNotification = exports.notifyOrderStatusUpdated = exports.notifyOrderCreated = exports.notifyOrderReady = exports.initializeOrderReadyWebSocket = void 0;
+exports.broadcastNotification = exports.notifyOrderStatusUpdated = exports.notifyOrderAssigned = exports.notifyOrderCreated = exports.notifyOrderReady = exports.initializeOrderReadyWebSocket = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const user_schema_js_1 = require("../auth/user.schema.js");
@@ -212,21 +212,27 @@ const getAssignedStaffId = (order) => {
 const notifyOrderEvent = (order, type) => {
     const userId = getId(order.userId);
     const assignedStaffId = getAssignedStaffId(order);
+    const orderType = order.orderType || "";
     const payload = {
         type,
         orderId: getId(order._id),
         userId,
+        orderType,
         orderStatus: order.orderStatus,
         customerName: order.customerName,
         tableId: getId(order.tableId),
         assignedStaffId,
+        assignedStaffName: order.assignedStaffName,
         sentAt: new Date().toISOString(),
     };
     writePayload(clientsByRole.get("admin"), payload);
+    if (orderType === "Takeaway") {
+        writePayload(clientsByRole.get("staff"), payload);
+    }
     if (userId) {
         writePayload(clientsByUserId.get(userId), payload);
     }
-    if (assignedStaffId) {
+    if (assignedStaffId && orderType !== "Takeaway") {
         writePayload(clientsByUserId.get(assignedStaffId), payload);
     }
 };
@@ -234,6 +240,10 @@ const notifyOrderCreated = (order) => {
     notifyOrderEvent(order, "ORDER_CREATED");
 };
 exports.notifyOrderCreated = notifyOrderCreated;
+const notifyOrderAssigned = (order) => {
+    notifyOrderEvent(order, "ORDER_ASSIGNED");
+};
+exports.notifyOrderAssigned = notifyOrderAssigned;
 const notifyOrderStatusUpdated = (order) => {
     notifyOrderEvent(order, "ORDER_STATUS_UPDATED");
 };

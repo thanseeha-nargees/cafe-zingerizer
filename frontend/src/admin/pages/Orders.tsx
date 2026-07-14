@@ -14,6 +14,7 @@ import { useOrderEvents } from "../../utils/useOrderEvents";
 type OrderStatus =
   | "PENDING"
   | "CONFIRMED"
+  | "ACCEPTED"
   | "PREPARING"
   | "READY"
   | "COMPLETED"
@@ -53,6 +54,8 @@ type AdminOrder = {
     | null;
   tableNumber?: number | null;
   assignedStaff?: AssignedStaff | string | null;
+  assignedStaffName?: string;
+  assignedAt?: string | null;
   items: OrderItem[];
   totalAmount: number;
   orderStatus: OrderStatus;
@@ -87,6 +90,7 @@ type StatusFilter = OrderStatus | "all";
 const orderStatuses: OrderStatus[] = [
   "PENDING",
   "CONFIRMED",
+  "ACCEPTED",
   "PREPARING",
   "READY",
   "COMPLETED",
@@ -96,6 +100,7 @@ const orderStatuses: OrderStatus[] = [
 const statusClass: Record<OrderStatus, string> = {
   PENDING: "bg-amber-50 text-amber-700 ring-amber-200",
   CONFIRMED: "bg-sky-50 text-sky-700 ring-sky-200",
+  ACCEPTED: "bg-teal-50 text-teal-700 ring-teal-200",
   PREPARING: "bg-orange-50 text-orange-700 ring-orange-200",
   READY: "bg-indigo-50 text-indigo-700 ring-indigo-200",
   COMPLETED: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -163,6 +168,10 @@ const getTableLabel = (order: AdminOrder) => {
 };
 
 const getAssignedStaffLabel = (order: AdminOrder) => {
+  if (order.assignedStaffName) {
+    return order.assignedStaffName;
+  }
+
   if (typeof order.assignedStaff === "object" && order.assignedStaff?.userName) {
     return order.assignedStaff.userName;
   }
@@ -337,8 +346,8 @@ function OrdersPage() {
 
       if (response.data.foodReadySms?.status === "failed") {
         setError(
-          response.data.message ||
-            response.data.foodReadySms.error ||
+          response.data.foodReadySms.error ||
+            response.data.message ||
             "Order status updated, but SMS failed"
         );
       }
@@ -617,7 +626,14 @@ function OrdersPage() {
                             aria-label="Update order status"
                           >
                             {orderStatuses.map((status) => (
-                              <option key={status} value={status}>
+                              <option
+                                key={status}
+                                value={status}
+                                disabled={
+                                  status === "ACCEPTED" &&
+                                  order.orderStatus !== "ACCEPTED"
+                                }
+                              >
                                 {status}
                               </option>
                             ))}

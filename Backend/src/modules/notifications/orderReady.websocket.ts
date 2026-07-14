@@ -19,6 +19,9 @@ type OrderEventSource = {
   userId?: unknown;
   tableId?: unknown;
   assignedStaff?: unknown;
+  assignedStaffName?: string;
+  assignedAt?: Date | string | null;
+  orderType?: string;
   orderStatus?: string;
   customerName?: string;
 };
@@ -33,13 +36,15 @@ type OrderReadyPayload = {
 };
 
 type OrderEventPayload = {
-  type: "ORDER_CREATED" | "ORDER_STATUS_UPDATED";
+  type: "ORDER_CREATED" | "ORDER_STATUS_UPDATED" | "ORDER_ASSIGNED";
   orderId: string;
   userId?: string;
+  orderType?: string;
   orderStatus?: string;
   customerName?: string;
   tableId?: string;
   assignedStaffId?: string;
+  assignedStaffName?: string;
   sentAt: string;
 };
 
@@ -322,30 +327,41 @@ const notifyOrderEvent = (
 ) => {
   const userId = getId(order.userId);
   const assignedStaffId = getAssignedStaffId(order);
+  const orderType = order.orderType || "";
   const payload: OrderEventPayload = {
     type,
     orderId: getId(order._id),
     userId,
+    orderType,
     orderStatus: order.orderStatus,
     customerName: order.customerName,
     tableId: getId(order.tableId),
     assignedStaffId,
+    assignedStaffName: order.assignedStaffName,
     sentAt: new Date().toISOString(),
   };
 
   writePayload(clientsByRole.get("admin"), payload);
 
+  if (orderType === "Takeaway") {
+    writePayload(clientsByRole.get("staff"), payload);
+  }
+
   if (userId) {
     writePayload(clientsByUserId.get(userId), payload);
   }
 
-  if (assignedStaffId) {
+  if (assignedStaffId && orderType !== "Takeaway") {
     writePayload(clientsByUserId.get(assignedStaffId), payload);
   }
 };
 
 export const notifyOrderCreated = (order: OrderEventSource) => {
   notifyOrderEvent(order, "ORDER_CREATED");
+};
+
+export const notifyOrderAssigned = (order: OrderEventSource) => {
+  notifyOrderEvent(order, "ORDER_ASSIGNED");
 };
 
 export const notifyOrderStatusUpdated = (order: OrderEventSource) => {

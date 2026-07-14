@@ -17,6 +17,7 @@ const getAdminDashboardController = async (req, res) => {
         const activeOrderStatuses = [
             "PENDING",
             "CONFIRMED",
+            "ACCEPTED",
             "PREPARING",
             "READY",
         ];

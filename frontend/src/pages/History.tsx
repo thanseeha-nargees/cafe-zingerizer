@@ -41,6 +41,7 @@ type Order = {
   orderStatus:
     | "PENDING"
     | "CONFIRMED"
+    | "ACCEPTED"
     | "PREPARING"
     | "READY"
     | "COMPLETED"
@@ -132,6 +133,7 @@ const getApiMessage = (error: unknown, fallback: string) => {
 const statusClass: Record<Order["orderStatus"], string> = {
   PENDING: "bg-amber-100 text-amber-700",
   CONFIRMED: "bg-blue-100 text-blue-700",
+  ACCEPTED: "bg-teal-100 text-teal-700",
   PREPARING: "bg-orange-100 text-orange-700",
   READY: "bg-emerald-100 text-emerald-700",
   COMPLETED: "bg-green-100 text-green-700",

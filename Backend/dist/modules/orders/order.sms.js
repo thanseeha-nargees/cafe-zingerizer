@@ -8,25 +8,23 @@ Your order is ready!
 Please collect your food from the counter.
 
 Thank you for visiting our cafe.`;
-const DEFAULT_FAST2SMS_API_URL = "https://www.fast2sms.com/dev/bulkV2";
-const DEFAULT_FAST2SMS_ROUTE = "q";
-const normalizeIndianPhoneNumber = (phoneNumber) => {
+const normalizeIndianPhoneNumberForTwilio = (phoneNumber) => {
     const digits = phoneNumber.replace(/\D/g, "");
     if (!digits) {
         throw new Error("Customer phone number not found");
     }
     if (digits.length === 10) {
-        return digits;
+        return `+91${digits}`;
     }
     if (digits.length === 11 && digits.startsWith("0")) {
-        return digits.slice(1);
+        return `+91${digits.slice(1)}`;
     }
     if (digits.length === 12 && digits.startsWith("91")) {
-        return digits.slice(2);
+        return `+${digits}`;
     }
     throw new Error("Customer phone number must be a 10-digit Indian mobile number");
 };
-const parseFast2SmsResponse = (responseBody) => {
+const parseTwilioResponse = (responseBody) => {
     try {
         return JSON.parse(responseBody);
     }
@@ -34,48 +32,84 @@ const parseFast2SmsResponse = (responseBody) => {
         return null;
     }
 };
-const formatFast2SmsMessage = (message) => {
-    if (Array.isArray(message)) {
-        return message.join(", ");
+const formatTwilioFailureMessage = (providerResponse, responseBody) => {
+    const providerMessage = providerResponse?.message || providerResponse?.error_message || responseBody;
+    if (!providerMessage)
+        return "";
+    const code = providerResponse?.code ? `Twilio code ${providerResponse.code}: ` : "";
+    return `${code}${providerMessage}`.slice(0, 300);
+};
+const getTwilioRequiredEnv = () => {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+    const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+    const fromNumber = process.env.TWILIO_FROM_NUMBER?.trim();
+    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
+    if (!accountSid || accountSid === "...") {
+        throw new Error("TWILIO_ACCOUNT_SID is not configured");
     }
-    if (typeof message === "string") {
-        return message;
+    if (!authToken || authToken === "...") {
+        throw new Error("TWILIO_AUTH_TOKEN is not configured");
     }
-    return "";
+    if (messagingServiceSid && messagingServiceSid !== "...") {
+        return {
+            accountSid,
+            authToken,
+            sender: {
+                type: "messagingService",
+                value: messagingServiceSid,
+            },
+        };
+    }
+    if (!fromNumber || fromNumber === "...") {
+        throw new Error("TWILIO_FROM_NUMBER is not configured. Use your SMS-capable Twilio sender number, or set TWILIO_MESSAGING_SERVICE_SID.");
+    }
+    if (fromNumber.startsWith("+91")) {
+        throw new Error("TWILIO_FROM_NUMBER looks like an Indian customer/verified phone number. It must be an SMS-capable Twilio sender, not your personal +91 number.");
+    }
+    return {
+        accountSid,
+        authToken,
+        sender: {
+            type: "from",
+            value: fromNumber,
+        },
+    };
 };
 const sendFoodReadySms = async (phoneNumber, customerName) => {
-    const smsApiUrl = process.env.SMS_API_URL || DEFAULT_FAST2SMS_API_URL;
-    const smsApiToken = process.env.SMS_API_TOKEN;
-    if (!smsApiToken) {
-        throw new Error("SMS_API_TOKEN is not configured");
+    const { accountSid, authToken, sender } = getTwilioRequiredEnv();
+    const toNumber = normalizeIndianPhoneNumberForTwilio(phoneNumber);
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const formBody = new URLSearchParams({
+        To: toNumber,
+        Body: getFoodReadyMessage(customerName),
+    });
+    if (sender.type === "messagingService") {
+        formBody.set("MessagingServiceSid", sender.value);
     }
-    const url = new URL(smsApiUrl);
-    url.searchParams.set("route", process.env.SMS_ROUTE || DEFAULT_FAST2SMS_ROUTE);
-    url.searchParams.set("message", getFoodReadyMessage(customerName));
-    url.searchParams.set("numbers", normalizeIndianPhoneNumber(phoneNumber));
+    else {
+        formBody.set("From", sender.value);
+    }
     const response = await fetch(url, {
-        method: "GET",
+        method: "POST",
         headers: {
-            Authorization: smsApiToken,
+            Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+            "Content-Type": "application/x-www-form-urlencoded",
         },
+        body: formBody.toString(),
     });
     const responseBody = await response.text().catch(() => "");
-    const providerResponse = parseFast2SmsResponse(responseBody);
-    const providerMessage = formatFast2SmsMessage(providerResponse?.message);
+    const providerResponse = parseTwilioResponse(responseBody);
     if (!response.ok) {
-        const details = responseBody ? `: ${responseBody.slice(0, 300)}` : "";
-        throw new Error(`Failed to send food ready SMS (${response.status} ${response.statusText})${details}`);
+        const details = formatTwilioFailureMessage(providerResponse, responseBody);
+        throw new Error(`Failed to send food ready SMS (${response.status} ${response.statusText})${details ? `: ${details}` : ""}`);
     }
     if (!providerResponse) {
-        throw new Error(`Failed to send food ready SMS: unexpected Fast2SMS response${responseBody ? `: ${responseBody.slice(0, 300)}` : ""}`);
-    }
-    if (providerResponse.return !== true) {
-        throw new Error(`Fast2SMS rejected food ready SMS${providerMessage ? `: ${providerMessage}` : ""}`);
+        throw new Error(`Failed to send food ready SMS: unexpected Twilio response${responseBody ? `: ${responseBody.slice(0, 300)}` : ""}`);
     }
     console.log("food ready SMS accepted", JSON.stringify({
-        provider: "Fast2SMS",
-        requestId: providerResponse.request_id || null,
-        message: providerMessage || null,
+        provider: "Twilio",
+        sid: providerResponse.sid || null,
+        status: providerResponse.status || null,
     }));
 };
 exports.sendFoodReadySms = sendFoodReadySms;

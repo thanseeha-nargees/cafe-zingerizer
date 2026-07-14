@@ -10,11 +10,13 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/axios";
+import { useAppSelector } from "../../app/hooks";
 import { useOrderEvents } from "../../utils/useOrderEvents";
 import type { StaffOrder, StaffSummary, StaffTable } from "../types";
 import {
   formatCurrency,
   formatDate,
+  getAssignmentLabel,
   getApiMessage,
   getItemName,
   getOrderLabel,
@@ -39,6 +41,7 @@ const emptySummary: StaffSummary = {
 };
 
 function StaffDashboard() {
+  const currentUser = useAppSelector((state) => state.auth.currentUser);
   const [summary, setSummary] = useState<StaffSummary>(emptySummary);
   const [tables, setTables] = useState<StaffTable[]>([]);
   const [recentOrders, setRecentOrders] = useState<StaffOrder[]>([]);
@@ -241,6 +244,11 @@ function StaffDashboard() {
                     <p className="mt-1 text-xs font-semibold text-slate-500">
                       {formatDate(order.createdAt)}
                     </p>
+                    {order.orderType === "Takeaway" ? (
+                      <p className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-700">
+                        {getAssignmentLabel(order, currentUser?.id)}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-3 md:justify-end">
                     <p className="text-sm font-black text-slate-950">

@@ -24,6 +24,7 @@ export const getAdminDashboardController = async (
     const activeOrderStatuses = [
       "PENDING",
       "CONFIRMED",
+      "ACCEPTED",
       "PREPARING",
       "READY",
     ] as const;
