@@ -170,6 +170,7 @@ export const updateOrderStatusWithSideEffects = async (
 
   const previousStatus = existingOrder.orderStatus as OrderStatus;
   const statusUpdate: Record<string, unknown> = { orderStatus: nextStatus };
+  
   const shouldStartPreparationTimer =
     nextStatus === "PREPARING" && previousStatus !== "PREPARING";
   const shouldClearPreparationTimer =
