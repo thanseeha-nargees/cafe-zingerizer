@@ -183,17 +183,15 @@ function OrderCard({
   onReorder,
   onOpenReview,
   onDeleteReview,
-  reordering,
   reviewSaving,
 }: {
   order: Order;
   menuById: Map<string, MenuItem>;
   now: number;
   reviewsByOrderProduct: Map<string, ProductReview>;
-  onReorder: (order: Order) => void;
+  onReorder: () => void;
   onOpenReview: (order: Order, productId?: string) => void;
   onDeleteReview: (review: ProductReview) => void;
-  reordering: boolean;
   reviewSaving: boolean;
 }) {
   const reviewableProducts =
@@ -351,15 +349,15 @@ function OrderCard({
               {reviewActionLabel}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => onReorder(order)}
-            disabled={reordering || order.orderStatus === "CANCELLED"}
-            className="inline-flex h-9 items-center gap-2 rounded-full bg-orange-700 px-5 text-sm font-bold text-white transition hover:bg-orange-800 disabled:cursor-not-allowed disabled:border disabled:border-orange-200 disabled:bg-white disabled:text-orange-700"
-          >
-            {reordering ? <Loader2 size={15} className="animate-spin" /> : null}
-            {order.orderStatus === "CANCELLED" ? "Retry" : "Reorder"}
-          </button>
+          {order.orderStatus === "COMPLETED" ? (
+            <button
+              type="button"
+              onClick={onReorder}
+              className="inline-flex h-9 items-center rounded-full bg-orange-700 px-5 text-sm font-bold text-white transition hover:bg-orange-800"
+            >
+              Reorder
+            </button>
+          ) : null}
         </div>
       </div>
     </article>
@@ -374,7 +372,6 @@ const History = () => {
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [reviewModal, setReviewModal] = useState<ReviewModalState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reorderingId, setReorderingId] = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [error, setError] = useState("");
@@ -511,27 +508,8 @@ const History = () => {
     setReviewModal({ order, productId: nextProductId });
   };
 
-  const handleReorder = async (order: Order) => {
-    if (!user) return;
-
-    setReorderingId(order._id);
-    setError("");
-
-    try {
-      for (const item of order.items) {
-        for (let count = 0; count < item.quantity; count += 1) {
-          await api.post("/cart", {
-            userId: user.id,
-            menuItemId: getMenuId(item),
-          });
-        }
-      }
-      navigate("/checkout");
-    } catch (reorderError) {
-      setError(getApiMessage(reorderError, "Unable to reorder this order."));
-    } finally {
-      setReorderingId("");
-    }
+  const handleReorder = () => {
+    navigate("/menu");
   };
 
   const handleReviewSubmit = async (data: { rating: number; review: string }) => {
@@ -669,7 +647,6 @@ const History = () => {
                   onReorder={handleReorder}
                   onOpenReview={openReviewModal}
                   onDeleteReview={handleDeleteReview}
-                  reordering={reorderingId === order._id}
                   reviewSaving={reviewSaving}
                 />
               ))}
