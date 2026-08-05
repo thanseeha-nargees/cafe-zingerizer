@@ -5,14 +5,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyRefreshToken = exports.generateRefreshToken = exports.generateAccessToken = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const accessSecret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
-const refreshSecret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
-if (!accessSecret) {
-    throw new Error("JWT_ACCESS_SECRET or JWT_SECRET is not configured");
-}
-if (!refreshSecret) {
-    throw new Error("JWT_REFRESH_SECRET or JWT_SECRET is not configured");
-}
+const getJwtSecret = (primaryName, fallbackName) => {
+    const primarySecret = process.env[primaryName]?.trim();
+    const fallbackSecret = process.env[fallbackName]?.trim();
+    if (primarySecret)
+        return primarySecret;
+    if (fallbackSecret)
+        return fallbackSecret;
+    throw new Error(`${primaryName} or ${fallbackName} is not configured`);
+};
+const accessSecret = getJwtSecret("JWT_ACCESS_SECRET", "JWT_SECRET");
+const refreshSecret = getJwtSecret("JWT_REFRESH_SECRET", "JWT_SECRET");
 const generateAccessToken = (userId, role) => {
     return jsonwebtoken_1.default.sign({ userId, role }, accessSecret, {
         expiresIn: "15m",

@@ -83,7 +83,7 @@ export const removeCartItemService = async (
     (item: any) => item.menuItemId.toString() !== menuItemId
   ) as any;
 
-  await cart.save();
+  await cart.save();66
 
   return await getCartService(userId);
 };

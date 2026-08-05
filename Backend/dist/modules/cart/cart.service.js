@@ -55,6 +55,7 @@ const removeCartItemService = async (userId, menuItemId) => {
     }
     cart.items = cart.items.filter((item) => item.menuItemId.toString() !== menuItemId);
     await cart.save();
+    66;
     return await (0, exports.getCartService)(userId);
 };
 exports.removeCartItemService = removeCartItemService;

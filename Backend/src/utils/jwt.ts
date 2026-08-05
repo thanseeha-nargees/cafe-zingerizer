@@ -1,15 +1,17 @@
 import jwt from "jsonwebtoken";
 
-const accessSecret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
-const refreshSecret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+const getJwtSecret = (primaryName: string, fallbackName: string) => {
+  const primarySecret = process.env[primaryName]?.trim();
+  const fallbackSecret = process.env[fallbackName]?.trim();
 
-if (!accessSecret) {
-  throw new Error("JWT_ACCESS_SECRET or JWT_SECRET is not configured");
-}
+  if (primarySecret) return primarySecret;
+  if (fallbackSecret) return fallbackSecret;
 
-if (!refreshSecret) {
-  throw new Error("JWT_REFRESH_SECRET or JWT_SECRET is not configured");
-}
+  throw new Error(`${primaryName} or ${fallbackName} is not configured`);
+};
+
+const accessSecret = getJwtSecret("JWT_ACCESS_SECRET", "JWT_SECRET");
+const refreshSecret = getJwtSecret("JWT_REFRESH_SECRET", "JWT_SECRET");
 
 export const generateAccessToken = (
   userId: string,
