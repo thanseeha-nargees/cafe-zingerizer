@@ -13,6 +13,8 @@ const FOOD_READY_QUEUE_KEY = "orders:food-ready:queue";
 exports.PREPARATION_TIME_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 1000;
 const scheduleFoodReadyNotification = async (orderId, readyAt) => {
+    if (!redis_js_1.default)
+        return;
     await redis_js_1.default.zAdd(FOOD_READY_QUEUE_KEY, {
         score: readyAt.getTime(),
         value: orderId,
@@ -20,10 +22,14 @@ const scheduleFoodReadyNotification = async (orderId, readyAt) => {
 };
 exports.scheduleFoodReadyNotification = scheduleFoodReadyNotification;
 const clearScheduledFoodReadyNotification = async (orderId) => {
+    if (!redis_js_1.default)
+        return;
     await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
 };
 exports.clearScheduledFoodReadyNotification = clearScheduledFoodReadyNotification;
 const processFoodReadyJob = async (orderId) => {
+    if (!redis_js_1.default)
+        return;
     const order = await order_model_js_1.Order.findById(orderId);
     if (!order || order.foodReadySmsSentAt) {
         await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
@@ -47,6 +53,8 @@ const processFoodReadyJob = async (orderId) => {
     await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
 };
 const processDueFoodReadyJobs = async () => {
+    if (!redis_js_1.default)
+        return;
     const dueOrderIds = await redis_js_1.default.zRangeByScore(FOOD_READY_QUEUE_KEY, 0, Date.now());
     for (const orderId of dueOrderIds) {
         try {
@@ -58,6 +66,8 @@ const processDueFoodReadyJobs = async () => {
     }
 };
 const restorePendingFoodReadyJobs = async () => {
+    if (!redis_js_1.default)
+        return;
     const orders = await order_model_js_1.Order.find({
         foodReadyAt: { $ne: null },
         foodReadySmsSentAt: null,
@@ -70,6 +80,10 @@ const restorePendingFoodReadyJobs = async () => {
     }
 };
 const startFoodReadyNotificationWorker = async () => {
+    if (!redis_js_1.default) {
+        console.warn("[Redis] Food-ready notification worker disabled — no Redis connection.");
+        return;
+    }
     await restorePendingFoodReadyJobs();
     setInterval(processDueFoodReadyJobs, POLL_INTERVAL_MS);
 };
