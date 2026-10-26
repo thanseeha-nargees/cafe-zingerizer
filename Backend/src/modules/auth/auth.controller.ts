@@ -44,9 +44,8 @@ const clearAuthCookies = (res: Response) => {
     maxAge: undefined,
   });
 };
-
-console.log("sendOtp API called");
 export const sendOtpController = async (req: Request, res: Response) => {
+  console.log("sendOtp API called");
   try {
     const validation = sendOtpSchema.safeParse(req.body);
 

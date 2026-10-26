@@ -11,29 +11,36 @@ const FOOD_READY_QUEUE_KEY = "orders:food-ready:queue";
 export const PREPARATION_TIME_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 1000;
 
+const inMemoryQueue = new Map<string, number>();
+
 export const scheduleFoodReadyNotification = async (
   orderId: string,
   readyAt: Date
 ) => {
-  if (!redisClient) return;
-  await redisClient.zAdd(FOOD_READY_QUEUE_KEY, {
-    score: readyAt.getTime(),
-    value: orderId,
-  });
+  if (redisClient) {
+    await redisClient.zAdd(FOOD_READY_QUEUE_KEY, {
+      score: readyAt.getTime(),
+      value: orderId,
+    });
+  } else {
+    inMemoryQueue.set(orderId, readyAt.getTime());
+  }
 };
 
 export const clearScheduledFoodReadyNotification = async (orderId: string) => {
-  if (!redisClient) return;
-  await redisClient.zRem(FOOD_READY_QUEUE_KEY, orderId);
+  if (redisClient) {
+    await redisClient.zRem(FOOD_READY_QUEUE_KEY, orderId);
+  } else {
+    inMemoryQueue.delete(orderId);
+  }
 };
 
 const processFoodReadyJob = async (orderId: string) => {
-  if (!redisClient) return;
+  await clearScheduledFoodReadyNotification(orderId);
 
   const order = await Order.findById(orderId);
 
   if (!order || order.foodReadySmsSentAt) {
-    await redisClient.zRem(FOOD_READY_QUEUE_KEY, orderId);
     return;
   }
 
@@ -41,7 +48,6 @@ const processFoodReadyJob = async (orderId: string) => {
     order.orderStatus !== "PREPARING" ||
     ["COMPLETED", "CANCELLED"].includes(order.orderStatus)
   ) {
-    await redisClient.zRem(FOOD_READY_QUEUE_KEY, orderId);
     return;
   }
 
@@ -57,18 +63,26 @@ const processFoodReadyJob = async (orderId: string) => {
   notifyOrderStatusUpdated(order);
 
   await sendFoodReadySmsOnce(order);
-
-  await redisClient.zRem(FOOD_READY_QUEUE_KEY, orderId);
 };
 
 const processDueFoodReadyJobs = async () => {
-  if (!redisClient) return;
+  const now = Date.now();
+  const dueOrderIds: string[] = [];
 
-  const dueOrderIds = await redisClient.zRangeByScore(
-    FOOD_READY_QUEUE_KEY,
-    0,
-    Date.now()
-  );
+  if (redisClient) {
+    const redisDue = await redisClient.zRangeByScore(
+      FOOD_READY_QUEUE_KEY,
+      0,
+      now
+    );
+    dueOrderIds.push(...redisDue);
+  } else {
+    for (const [orderId, readyTime] of inMemoryQueue.entries()) {
+      if (readyTime <= now) {
+        dueOrderIds.push(orderId);
+      }
+    }
+  }
 
   for (const orderId of dueOrderIds) {
     try {
@@ -83,8 +97,6 @@ const processDueFoodReadyJobs = async () => {
 };
 
 const restorePendingFoodReadyJobs = async () => {
-  if (!redisClient) return;
-
   const orders = await Order.find({
     foodReadyAt: { $ne: null },
     foodReadySmsSentAt: null,
@@ -102,12 +114,13 @@ const restorePendingFoodReadyJobs = async () => {
 };
 
 export const startFoodReadyNotificationWorker = async () => {
-  if (!redisClient) {
-    console.warn("[Redis] Food-ready notification worker disabled — no Redis connection.");
-    return;
-  }
   await restorePendingFoodReadyJobs();
   setInterval(processDueFoodReadyJobs, POLL_INTERVAL_MS);
+  if (redisClient) {
+    console.log("[Worker] Food-ready notification worker started (Redis queue)");
+  } else {
+    console.log("[Worker] Food-ready notification worker started (in-memory queue fallback)");
+  }
 };
 
 export const getEstimatedReadyAt = (from = new Date()) =>

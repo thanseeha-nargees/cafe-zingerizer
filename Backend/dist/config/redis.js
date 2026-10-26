@@ -6,8 +6,7 @@ const redis_1 = require("redis");
 const REDIS_URL = process.env.REDIS_URL;
 let redisClient = null;
 if (!REDIS_URL) {
-    console.warn("[Redis] REDIS_URL is not set — running without Redis. " +
-        "Food-ready scheduling and other Redis features will be disabled.");
+    console.log("[Redis] REDIS_URL is not configured — running with built-in in-memory queue fallback.");
 }
 else {
     const MAX_RETRIES = 5;

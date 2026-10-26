@@ -12,32 +12,36 @@ const order_sms_js_1 = require("./order.sms.js");
 const FOOD_READY_QUEUE_KEY = "orders:food-ready:queue";
 exports.PREPARATION_TIME_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 1000;
+const inMemoryQueue = new Map();
 const scheduleFoodReadyNotification = async (orderId, readyAt) => {
-    if (!redis_js_1.default)
-        return;
-    await redis_js_1.default.zAdd(FOOD_READY_QUEUE_KEY, {
-        score: readyAt.getTime(),
-        value: orderId,
-    });
+    if (redis_js_1.default) {
+        await redis_js_1.default.zAdd(FOOD_READY_QUEUE_KEY, {
+            score: readyAt.getTime(),
+            value: orderId,
+        });
+    }
+    else {
+        inMemoryQueue.set(orderId, readyAt.getTime());
+    }
 };
 exports.scheduleFoodReadyNotification = scheduleFoodReadyNotification;
 const clearScheduledFoodReadyNotification = async (orderId) => {
-    if (!redis_js_1.default)
-        return;
-    await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
+    if (redis_js_1.default) {
+        await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
+    }
+    else {
+        inMemoryQueue.delete(orderId);
+    }
 };
 exports.clearScheduledFoodReadyNotification = clearScheduledFoodReadyNotification;
 const processFoodReadyJob = async (orderId) => {
-    if (!redis_js_1.default)
-        return;
+    await (0, exports.clearScheduledFoodReadyNotification)(orderId);
     const order = await order_model_js_1.Order.findById(orderId);
     if (!order || order.foodReadySmsSentAt) {
-        await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
         return;
     }
     if (order.orderStatus !== "PREPARING" ||
         ["COMPLETED", "CANCELLED"].includes(order.orderStatus)) {
-        await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
         return;
     }
     const previousStatus = order.orderStatus;
@@ -50,12 +54,21 @@ const processFoodReadyJob = async (orderId) => {
     (0, orderReady_websocket_js_1.notifyOrderReady)(order);
     (0, orderReady_websocket_js_1.notifyOrderStatusUpdated)(order);
     await (0, order_sms_js_1.sendFoodReadySmsOnce)(order);
-    await redis_js_1.default.zRem(FOOD_READY_QUEUE_KEY, orderId);
 };
 const processDueFoodReadyJobs = async () => {
-    if (!redis_js_1.default)
-        return;
-    const dueOrderIds = await redis_js_1.default.zRangeByScore(FOOD_READY_QUEUE_KEY, 0, Date.now());
+    const now = Date.now();
+    const dueOrderIds = [];
+    if (redis_js_1.default) {
+        const redisDue = await redis_js_1.default.zRangeByScore(FOOD_READY_QUEUE_KEY, 0, now);
+        dueOrderIds.push(...redisDue);
+    }
+    else {
+        for (const [orderId, readyTime] of inMemoryQueue.entries()) {
+            if (readyTime <= now) {
+                dueOrderIds.push(orderId);
+            }
+        }
+    }
     for (const orderId of dueOrderIds) {
         try {
             await processFoodReadyJob(orderId);
@@ -66,8 +79,6 @@ const processDueFoodReadyJobs = async () => {
     }
 };
 const restorePendingFoodReadyJobs = async () => {
-    if (!redis_js_1.default)
-        return;
     const orders = await order_model_js_1.Order.find({
         foodReadyAt: { $ne: null },
         foodReadySmsSentAt: null,
@@ -80,12 +91,14 @@ const restorePendingFoodReadyJobs = async () => {
     }
 };
 const startFoodReadyNotificationWorker = async () => {
-    if (!redis_js_1.default) {
-        console.warn("[Redis] Food-ready notification worker disabled — no Redis connection.");
-        return;
-    }
     await restorePendingFoodReadyJobs();
     setInterval(processDueFoodReadyJobs, POLL_INTERVAL_MS);
+    if (redis_js_1.default) {
+        console.log("[Worker] Food-ready notification worker started (Redis queue)");
+    }
+    else {
+        console.log("[Worker] Food-ready notification worker started (in-memory queue fallback)");
+    }
 };
 exports.startFoodReadyNotificationWorker = startFoodReadyNotificationWorker;
 const getEstimatedReadyAt = (from = new Date()) => new Date(from.getTime() + exports.PREPARATION_TIME_MS);
