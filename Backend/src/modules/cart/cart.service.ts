@@ -15,7 +15,8 @@ export const addToCartService = async (
     return cart;
   }
 
-  const existingItem = cart.items.find(
+  const items = cart.items as any;
+  const existingItem = items.find(
     (item: any) => item.menuItemId.toString() === menuItemId
   );
 
@@ -25,7 +26,7 @@ export const addToCartService = async (
     cart.items.push({
       menuItemId,
       quantity: 1,
-    });
+    } as any);
   }
 
   await cart.save();
@@ -48,7 +49,8 @@ export const updateCartItemQuantityService = async (
     throw new Error("Cart not found");
   }
 
-  const existingItem = cart.items.find(
+  const items = cart.items as any;
+  const existingItem = items.find(
     (item: any) => item.menuItemId.toString() === menuItemId
   );
 
@@ -57,9 +59,9 @@ export const updateCartItemQuantityService = async (
   }
 
   if (quantity <= 0) {
-    cart.items = cart.items.filter(
+    (cart as any).items = (cart.items as any).filter(
       (item: any) => item.menuItemId.toString() !== menuItemId
-    ) as any;
+    );
   } else {
     existingItem.quantity = quantity;
   }
@@ -79,11 +81,11 @@ export const removeCartItemService = async (
     throw new Error("Cart not found");
   }
 
-  cart.items = cart.items.filter(
+  (cart as any).items = (cart.items as any).filter(
     (item: any) => item.menuItemId.toString() !== menuItemId
-  ) as any;
+  );
 
-  await cart.save();66
+  await cart.save();
 
   return await getCartService(userId);
 };
