@@ -13,7 +13,7 @@ const router = express.Router();
 
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

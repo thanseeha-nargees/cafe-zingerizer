@@ -10,7 +10,7 @@ const authMiddleware_js_1 = require("../../middleware/authMiddleware.js");
 const router = express_1.default.Router();
 const otpLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000,
-    limit: 5,
+    limit: 20,
     standardHeaders: true,
     legacyHeaders: false,
     message: {

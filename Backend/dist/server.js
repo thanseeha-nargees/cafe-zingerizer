@@ -24,6 +24,7 @@ const payment_routes_js_1 = __importDefault(require("./modules/payments/payment.
 const orderReady_websocket_js_1 = require("./modules/notifications/orderReady.websocket.js");
 const cors_1 = __importDefault(require("cors"));
 const app = (0, express_1.default)();
+app.set("trust proxy", 1);
 const server = (0, http_1.createServer)(app);
 app.use(express_1.default.json());
 app.use((0, cookie_parser_1.default)());

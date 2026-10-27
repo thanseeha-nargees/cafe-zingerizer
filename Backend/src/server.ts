@@ -19,7 +19,8 @@ import paymentRoutes from "./modules/payments/payment.routes.js";
 import { initializeOrderReadyWebSocket } from "./modules/notifications/orderReady.websocket.js";
 import cors from "cors"
 
-const app = express()
+const app = express();
+app.set("trust proxy", 1);
 const server = createServer(app);
 
 app.use(express.json());
