@@ -6,6 +6,14 @@ export const api = axios.create({
   withCredentials: true,
 });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("accessToken");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 type RetryRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
 };
@@ -18,6 +26,7 @@ const isLoginPage = () =>
   );
 
 const redirectAfterAuthFailure = () => {
+  localStorage.removeItem("accessToken");
   if (isLoginPage()) return;
 
   if (window.location.pathname.startsWith("/admin")) {
@@ -59,13 +68,21 @@ api.interceptors.response.use(
       if (!refreshRequest) {
         refreshRequest = api
           .post("/auth/refresh")
-          .then(() => undefined)
+          .then((res) => {
+            if (res.data?.accessToken) {
+              localStorage.setItem("accessToken", res.data.accessToken);
+            }
+          })
           .finally(() => {
             refreshRequest = null;
           });
       }
 
       await refreshRequest;
+      const newToken = localStorage.getItem("accessToken");
+      if (newToken) {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      }
       return api(originalRequest);
     } catch (refreshError) {
       redirectAfterAuthFailure();

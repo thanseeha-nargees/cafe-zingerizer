@@ -58,6 +58,9 @@ function VerifyOtp() {
 
     try {
       const response = await api.post("/auth/verify-otp", { email, otp });
+      if (response.data?.accessToken) {
+        localStorage.setItem("accessToken", response.data.accessToken);
+      }
       dispatch(setCurrentUser(response.data.user));
       const qrTableId = getQrTableId();
       navigate(qrTableId ? `/menu/${qrTableId}` : "/", { replace: true });

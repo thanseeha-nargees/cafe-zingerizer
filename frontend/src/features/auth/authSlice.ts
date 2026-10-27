@@ -72,6 +72,7 @@ const authSlice = createSlice({
       state.error = "";
     },
     clearCurrentUser(state) {
+      localStorage.removeItem("accessToken");
       state.currentUser = null;
       state.status = "unauthenticated";
       state.error = "";

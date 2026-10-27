@@ -73,6 +73,7 @@ const verifyOtpController = async (req, res) => {
         res.cookie("refreshToken", refreshToken, refreshCookieOptions);
         return res.status(200).json({
             success: true,
+            accessToken,
             user,
         });
     }
@@ -121,6 +122,7 @@ const refreshTokenController = async (req, res) => {
         res.cookie("refreshToken", refreshToken, refreshCookieOptions);
         return res.status(200).json({
             success: true,
+            accessToken,
             message: "Token refreshed",
         });
     }

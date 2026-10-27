@@ -97,6 +97,7 @@ export const verifyOtpController = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
+      accessToken,
       user,
     });
   } catch (error: any) {
@@ -155,6 +156,7 @@ export const refreshTokenController = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
+      accessToken,
       message: "Token refreshed",
     });
   } catch (error) {

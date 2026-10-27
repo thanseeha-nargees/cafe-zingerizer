@@ -8,7 +8,10 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const user_schema_1 = require("../modules/auth/user.schema");
 const protect = async (req, res, next) => {
     try {
-        const token = req.cookies?.accessToken;
+        let token = req.cookies?.accessToken;
+        if (!token && req.headers.authorization?.startsWith("Bearer ")) {
+            token = req.headers.authorization.split(" ")[1];
+        }
         if (!token) {
             return res.status(401).json({ message: "Authentication required" });
         }

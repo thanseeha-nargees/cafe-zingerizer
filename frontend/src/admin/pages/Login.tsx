@@ -76,6 +76,9 @@ function AdminLogin() {
         email: email.trim().toLowerCase(),
         password,
       });
+      if (response.data?.accessToken) {
+        localStorage.setItem("accessToken", response.data.accessToken);
+      }
       dispatch(setCurrentUser(response.data.user));
 
       const from = (location.state as { from?: { pathname?: string } } | null)
